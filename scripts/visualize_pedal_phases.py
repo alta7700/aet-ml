@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Строит интервалы push/pull по гироскопам из finaltest.h5."""
+"""Строит интервалы педалирования и уточняет onset по ЭМГ из finaltest.h5."""
 
 from __future__ import annotations
 
@@ -7,15 +7,15 @@ import argparse
 import json
 import math
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
 
+from matplotlib.widgets import Slider
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import butter, filtfilt, find_peaks
-from matplotlib.widgets import Slider
+from scipy.signal import butter, filtfilt, find_peaks, iirnotch
 
 
 DATA_DIR = Path("/Users/tascan/Desktop/диссер/data")
@@ -31,6 +31,14 @@ DEFAULT_BANDPASS_HIGH_HZ = 4.0
 DEFAULT_PEAK_PROMINENCE_STD = 0.5
 DEFAULT_ZOOM_DURATION_SEC = 20.0
 MIN_AUTOCORR_SCORE = 0.20
+EMG_NOTCH_FREQ_HZ = 50.0
+EMG_NOTCH_Q = 30.0
+EMG_BANDPASS_LOW_HZ = 20.0
+EMG_BANDPASS_HIGH_HZ = 450.0
+EMG_ENVELOPE_LOW_PASS_HZ = 8.0
+EMG_REST_TRIM_FRACTION = 0.2
+EMG_THRESHOLD_K = 4.0
+EMG_MIN_ONSET_HOLD_SEC = 0.04
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,10 @@ class SignalChannel:
     sample_rate_hz: float
     timestamps_sec: np.ndarray
     values: np.ndarray
+    filtered_values: np.ndarray | None = None
+    envelope_values: np.ndarray | None = None
+    refined_onset_sec_by_cycle: np.ndarray | None = None
+    refined_threshold_by_cycle: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -107,7 +119,7 @@ def parse_args() -> argparse.Namespace:
     """Разбирает аргументы командной строки."""
     parser = argparse.ArgumentParser(
         description=(
-            "Строит интервалы push/pull по гироскопам из finaltest.h5, "
+            "Строит интервалы педалирования по гироскопам, уточняет onset по ЭМГ, "
             "сохраняет JSON и показывает график."
         )
     )
@@ -221,17 +233,43 @@ def load_signal_channel(
     """Загружает канал сигнала для последующей визуализации."""
     raw_timestamps, values = load_channel(handle, channel_name)
     sample_rate_hz = 1.0 / float(np.median(np.diff(raw_timestamps)) / 1000.0)
+    filtered_values, envelope_values = preprocess_emg_signal(
+        raw_values=values.astype(float),
+        sample_rate_hz=sample_rate_hz,
+    )
     return SignalChannel(
         channel_name=channel_name,
         sample_rate_hz=sample_rate_hz,
         timestamps_sec=to_relative_seconds(raw_timestamps, anchor_ms),
         values=values.astype(np.float32),
+        filtered_values=filtered_values.astype(np.float32),
+        envelope_values=envelope_values.astype(np.float32),
     )
 
 
 def to_relative_seconds(raw_timestamps_ms: np.ndarray, anchor_ms: float) -> np.ndarray:
     """Переводит временную ось HDF5 в секунды относительно начала записи."""
     return (np.asarray(raw_timestamps_ms, dtype=float) - float(anchor_ms)) / 1000.0
+
+
+def preprocess_emg_signal(raw_values: np.ndarray, sample_rate_hz: float) -> tuple[np.ndarray, np.ndarray]:
+    """Готовит полосовой ЭМГ и его огибающую для поиска onset."""
+    notch_b, notch_a = iirnotch(EMG_NOTCH_FREQ_HZ, Q=EMG_NOTCH_Q, fs=sample_rate_hz)
+    notch_filtered = filtfilt(notch_b, notch_a, raw_values)
+
+    high_hz = min(EMG_BANDPASS_HIGH_HZ, sample_rate_hz * 0.45)
+    band_b, band_a = butter(
+        4,
+        [EMG_BANDPASS_LOW_HZ, high_hz],
+        btype="bandpass",
+        fs=sample_rate_hz,
+    )
+    bandpassed = filtfilt(band_b, band_a, notch_filtered)
+
+    envelope_b, envelope_a = butter(3, EMG_ENVELOPE_LOW_PASS_HZ, btype="low", fs=sample_rate_hz)
+    envelope = filtfilt(envelope_b, envelope_a, np.abs(bandpassed))
+    envelope = np.maximum(envelope, 0.0)
+    return bandpassed.astype(float), envelope.astype(float)
 
 
 def load_power_stages(handle: h5py.File, anchor_ms: float) -> tuple[StageInterval, ...]:
@@ -497,6 +535,116 @@ def detect_cycles(
     return tuple(cycles)
 
 
+def robust_mad(values: np.ndarray) -> float:
+    """Считает робастную оценку разброса через MAD."""
+    if values.size == 0:
+        return 0.0
+    median = float(np.median(values))
+    return float(1.4826 * np.median(np.abs(values - median)))
+
+
+def build_rest_reference_window(previous_cycle: CyclePhase) -> tuple[float, float]:
+    """Берёт центральную тихую часть предыдущего отдыха для локального порога."""
+    rest_start_sec = previous_cycle.pull_start_sec
+    rest_end_sec = previous_cycle.pull_end_sec
+    duration_sec = rest_end_sec - rest_start_sec
+    trimmed_start_sec = rest_start_sec + EMG_REST_TRIM_FRACTION * duration_sec
+    trimmed_end_sec = rest_end_sec - EMG_REST_TRIM_FRACTION * duration_sec
+    if trimmed_end_sec - trimmed_start_sec < 0.05:
+        return rest_start_sec, rest_end_sec
+    return float(trimmed_start_sec), float(trimmed_end_sec)
+
+
+def find_refined_onset_in_cycle(
+    timestamps_sec: np.ndarray,
+    envelope_values: np.ndarray,
+    cycle: CyclePhase,
+    threshold_value: float,
+    sample_rate_hz: float,
+) -> float:
+    """Ищет onset как первое устойчивое превышение порога в фазе нагрузки."""
+    activation_mask = (timestamps_sec >= cycle.push_start_sec) & (timestamps_sec <= cycle.push_end_sec)
+    activation_indices = np.flatnonzero(activation_mask)
+    if activation_indices.size == 0:
+        return cycle.push_start_sec
+
+    activation_envelope = envelope_values[activation_indices]
+    hold_samples = max(1, int(round(sample_rate_hz * EMG_MIN_ONSET_HOLD_SEC)))
+    above_threshold = activation_envelope >= threshold_value
+
+    if hold_samples == 1:
+        crossings = np.flatnonzero(above_threshold)
+        if crossings.size > 0:
+            return float(timestamps_sec[activation_indices[int(crossings[0])]])
+        return cycle.push_start_sec
+
+    run_length = 0
+    for local_index, is_above in enumerate(above_threshold):
+        if is_above:
+            run_length += 1
+            if run_length >= hold_samples:
+                onset_index = local_index - hold_samples + 1
+                return float(timestamps_sec[activation_indices[onset_index]])
+        else:
+            run_length = 0
+    return cycle.push_start_sec
+
+
+def refine_channel_onsets(
+    emg_channel: SignalChannel,
+    cycles: tuple[CyclePhase, ...],
+) -> SignalChannel:
+    """Уточняет onset для каждого цикла по локальному порогу от предыдущего отдыха."""
+    if emg_channel.envelope_values is None:
+        raise ValueError(f"У канала '{emg_channel.channel_name}' нет ЭМГ-огибающей.")
+
+    timestamps_sec = emg_channel.timestamps_sec
+    envelope_values = emg_channel.envelope_values.astype(float)
+    refined_onsets = np.full(len(cycles), np.nan, dtype=float)
+    refined_thresholds = np.full(len(cycles), np.nan, dtype=float)
+
+    for cycle_index, cycle in enumerate(cycles):
+        if cycle_index == 0:
+            refined_onsets[cycle_index] = cycle.push_start_sec
+            continue
+
+        rest_start_sec, rest_end_sec = build_rest_reference_window(cycles[cycle_index - 1])
+        rest_mask = (timestamps_sec >= rest_start_sec) & (timestamps_sec <= rest_end_sec)
+        rest_values = envelope_values[rest_mask]
+        if rest_values.size < 5:
+            rest_mask = (
+                (timestamps_sec >= cycles[cycle_index - 1].pull_start_sec)
+                & (timestamps_sec <= cycles[cycle_index - 1].pull_end_sec)
+            )
+            rest_values = envelope_values[rest_mask]
+
+        if rest_values.size < 5:
+            refined_onsets[cycle_index] = cycle.push_start_sec
+            continue
+
+        rest_median = float(np.median(rest_values))
+        rest_mad = robust_mad(rest_values)
+        if rest_mad <= 1e-12:
+            rest_mad = float(np.std(rest_values))
+        threshold_value = rest_median + EMG_THRESHOLD_K * max(rest_mad, 1e-12)
+        onset_sec = find_refined_onset_in_cycle(
+            timestamps_sec=timestamps_sec,
+            envelope_values=envelope_values,
+            cycle=cycle,
+            threshold_value=threshold_value,
+            sample_rate_hz=emg_channel.sample_rate_hz,
+        )
+        refined_onsets[cycle_index] = onset_sec
+        refined_thresholds[cycle_index] = threshold_value
+
+    refined_onsets[0] = cycles[0].push_start_sec
+    return replace(
+        emg_channel,
+        refined_onset_sec_by_cycle=refined_onsets,
+        refined_threshold_by_cycle=refined_thresholds,
+    )
+
+
 def detect_phases(
     participant_name: str,
     source_h5_path: Path,
@@ -561,6 +709,10 @@ def detect_phases(
         max_cadence_rpm=max_cadence_rpm,
         peak_prominence_std=peak_prominence_std,
     )
+    refined_emg_channels = tuple(
+        refine_channel_onsets(emg_channel=channel, cycles=cycles)
+        for channel in emg_channels
+    )
     return PhaseDetectionResult(
         participant_name=participant_name,
         source_h5_path=source_h5_path,
@@ -571,7 +723,7 @@ def detect_phases(
         calibration_end_sec=calibration_end_sec,
         cycles=cycles,
         timestamps_sec=timestamps_sec_ref,
-        emg_channels=emg_channels,
+        emg_channels=refined_emg_channels,
     )
 
 
@@ -586,31 +738,41 @@ def build_output_payload(result: PhaseDetectionResult) -> dict[str, object]:
 
     cycles_payload = []
     for cycle in result.cycles:
-        cycles_payload.append(
-            {
-                "cycle_index": cycle.cycle_index,
-                "push_start_sec": cycle.push_start_sec,
-                "push_end_sec": cycle.push_end_sec,
-                "pull_start_sec": cycle.pull_start_sec,
-                "pull_end_sec": cycle.pull_end_sec,
-                "load_start_sec": cycle.push_start_sec,
-                "load_end_sec": cycle.push_end_sec,
-                "rest_start_sec": cycle.pull_start_sec,
-                "rest_end_sec": cycle.pull_end_sec,
-                "peak_time_sec": cycle.peak_time_sec,
-                "cadence_rpm": cycle.cadence_rpm,
-                "push_duration_sec": cycle.push_duration_sec,
-                "pull_duration_sec": cycle.pull_duration_sec,
-                "load_duration_sec": cycle.push_duration_sec,
-                "rest_duration_sec": cycle.pull_duration_sec,
-                "cycle_duration_sec": cycle.cycle_duration_sec,
-                "push_start_index": cycle.push_start_index,
-                "push_end_index": cycle.push_end_index,
-                "pull_start_index": cycle.pull_start_index,
-                "pull_end_index": cycle.pull_end_index,
-                "peak_index": cycle.peak_index,
-            }
-        )
+        cycle_payload = {
+            "cycle_index": cycle.cycle_index,
+            "push_start_sec": cycle.push_start_sec,
+            "push_end_sec": cycle.push_end_sec,
+            "pull_start_sec": cycle.pull_start_sec,
+            "pull_end_sec": cycle.pull_end_sec,
+            "load_start_sec": cycle.push_start_sec,
+            "load_end_sec": cycle.push_end_sec,
+            "rest_start_sec": cycle.pull_start_sec,
+            "rest_end_sec": cycle.pull_end_sec,
+            "peak_time_sec": cycle.peak_time_sec,
+            "cadence_rpm": cycle.cadence_rpm,
+            "push_duration_sec": cycle.push_duration_sec,
+            "pull_duration_sec": cycle.pull_duration_sec,
+            "load_duration_sec": cycle.push_duration_sec,
+            "rest_duration_sec": cycle.pull_duration_sec,
+            "cycle_duration_sec": cycle.cycle_duration_sec,
+            "push_start_index": cycle.push_start_index,
+            "push_end_index": cycle.push_end_index,
+            "pull_start_index": cycle.pull_start_index,
+            "pull_end_index": cycle.pull_end_index,
+            "peak_index": cycle.peak_index,
+        }
+        for emg_channel in result.emg_channels:
+            onset_values = emg_channel.refined_onset_sec_by_cycle
+            threshold_values = emg_channel.refined_threshold_by_cycle
+            if onset_values is None or threshold_values is None:
+                continue
+            cycle_payload[f"{emg_channel.channel_name}.refined_onset_sec"] = float(
+                onset_values[cycle.cycle_index]
+            )
+            cycle_payload[f"{emg_channel.channel_name}.refined_threshold"] = float(
+                threshold_values[cycle.cycle_index]
+            )
+        cycles_payload.append(cycle_payload)
 
     return {
         "participant_name": result.participant_name,
@@ -619,6 +781,16 @@ def build_output_payload(result: PhaseDetectionResult) -> dict[str, object]:
             "Нагрузка = восходящая ветвь PCA-проекции от локального минимума до следующего пика; "
             "отдых = нисходящая ветвь от пика до следующего локального минимума."
         ),
+        "emg_onset_refinement": {
+            "description": (
+                "Onset уточняется только по началу активации. Порог = median + k*MAD "
+                "по центральной части предыдущего отдыха."
+            ),
+            "rest_trim_fraction": EMG_REST_TRIM_FRACTION,
+            "threshold_k": EMG_THRESHOLD_K,
+            "min_onset_hold_sec": EMG_MIN_ONSET_HOLD_SEC,
+            "envelope_low_pass_hz": EMG_ENVELOPE_LOW_PASS_HZ,
+        },
         "selected_sensor": {
             "sensor_name": result.selected_sensor.sensor_name,
             "sample_rate_hz": result.selected_sensor.sample_rate_hz,
@@ -642,6 +814,13 @@ def build_output_payload(result: PhaseDetectionResult) -> dict[str, object]:
             "p05_rpm": float(np.quantile([cycle.cadence_rpm for cycle in result.cycles], 0.05)),
             "p95_rpm": float(np.quantile([cycle.cadence_rpm for cycle in result.cycles], 0.95)),
         },
+        "emg_channels": [
+            {
+                "channel_name": emg_channel.channel_name,
+                "sample_rate_hz": emg_channel.sample_rate_hz,
+            }
+            for emg_channel in result.emg_channels
+        ],
         "cycles": cycles_payload,
     }
 
@@ -684,6 +863,9 @@ def render_emg_axis(
     window_duration_sec: float,
 ) -> None:
     """Рисует один ЭМГ-канал с линией педалирования и интервалами фаз."""
+    if emg_channel.refined_onset_sec_by_cycle is None:
+        raise ValueError(f"У канала '{emg_channel.channel_name}' нет уточнённых onset.")
+
     window_end_sec = window_start_sec + window_duration_sec
     emg_timestamps_sec = emg_channel.timestamps_sec
     emg_values = emg_channel.values
@@ -725,12 +907,30 @@ def render_emg_axis(
     )
     ax.axhline(0.0, color="gray", linewidth=0.6, linestyle="--", alpha=0.6)
 
-    for cycle in result.cycles:
+    refined_onsets = emg_channel.refined_onset_sec_by_cycle
+    for cycle_index, cycle in enumerate(result.cycles):
         if cycle.pull_end_sec < window_start_sec or cycle.push_start_sec > window_end_sec:
             continue
-        ax.axvspan(cycle.push_start_sec, cycle.push_end_sec, color="#e67e22", alpha=0.18)
-        ax.axvspan(cycle.pull_start_sec, cycle.pull_end_sec, color="#5dade2", alpha=0.18)
+        next_rest_end_sec = cycle.pull_end_sec
+        if cycle_index + 1 < len(result.cycles):
+            next_onset = refined_onsets[cycle_index + 1]
+            if np.isfinite(next_onset):
+                next_rest_end_sec = float(min(next_onset, result.cycles[cycle_index + 1].push_end_sec))
+
+        refined_onset_sec = float(refined_onsets[cycle_index])
+        if not np.isfinite(refined_onset_sec):
+            refined_onset_sec = cycle.push_start_sec
+        refined_onset_sec = min(max(refined_onset_sec, cycle.push_start_sec), cycle.push_end_sec)
+
+        # Бледная разметка показывает исходную механику по гироскопу.
+        ax.axvspan(cycle.push_start_sec, cycle.push_end_sec, color="#e67e22", alpha=0.06)
+        ax.axvspan(cycle.pull_start_sec, cycle.pull_end_sec, color="#5dade2", alpha=0.06)
+
+        # Насыщенная разметка показывает уточнённые интервалы по onset ЭМГ.
+        ax.axvspan(cycle.push_end_sec, next_rest_end_sec, color="#5dade2", alpha=0.18)
+        ax.axvspan(refined_onset_sec, cycle.push_end_sec, color="#e67e22", alpha=0.22)
         ax.axvline(cycle.peak_time_sec, color="#c0392b", linewidth=0.6, alpha=0.45)
+        ax.axvline(refined_onset_sec, color="#8e44ad", linewidth=0.8, alpha=0.65)
 
     cadence_in_window = np.array(
         [
@@ -742,7 +942,15 @@ def render_emg_axis(
     )
     push_values = np.array(
         [
-            cycle.push_duration_sec
+            cycle.push_end_sec - min(
+                max(
+                    float(refined_onsets[cycle.cycle_index])
+                    if np.isfinite(refined_onsets[cycle.cycle_index])
+                    else cycle.push_start_sec,
+                    cycle.push_start_sec,
+                ),
+                cycle.push_end_sec,
+            )
             for cycle in result.cycles
             if cycle.pull_end_sec >= window_start_sec and cycle.push_start_sec <= window_end_sec
         ],
@@ -750,7 +958,16 @@ def render_emg_axis(
     )
     pull_values = np.array(
         [
-            cycle.pull_duration_sec
+            (
+                min(
+                    float(refined_onsets[cycle.cycle_index + 1]),
+                    result.cycles[cycle.cycle_index + 1].push_end_sec,
+                )
+                if cycle.cycle_index + 1 < len(result.cycles)
+                and np.isfinite(refined_onsets[cycle.cycle_index + 1])
+                else cycle.pull_end_sec
+            )
+            - cycle.push_end_sec
             for cycle in result.cycles
             if cycle.pull_end_sec >= window_start_sec and cycle.push_start_sec <= window_end_sec
         ],
@@ -773,7 +990,8 @@ def render_emg_axis(
         f"Циклов в окне: {cycle_count}\n"
         f"Каданс, медиана: {np.nanmedian(cadence_in_window):.1f} rpm\n"
         f"Нагрузка, медиана: {np.nanmedian(push_values) * 1000:.0f} ms\n"
-        f"Отдых, медиана: {np.nanmedian(pull_values) * 1000:.0f} ms"
+        f"Отдых, медиана: {np.nanmedian(pull_values) * 1000:.0f} ms\n"
+        f"Фиолетовая линия = refined onset"
     )
     ax.text(
         0.99,
@@ -929,6 +1147,19 @@ def describe_result(result: PhaseDetectionResult) -> None:
         f"Нагрузка: median={np.median(push_values) * 1000:.0f} ms | "
         f"Отдых: median={np.median(pull_values) * 1000:.0f} ms"
     )
+    for emg_channel in result.emg_channels:
+        if emg_channel.refined_onset_sec_by_cycle is None:
+            continue
+        coarse_starts = np.array([cycle.push_start_sec for cycle in result.cycles], dtype=float)
+        onset_shift_ms = (emg_channel.refined_onset_sec_by_cycle - coarse_starts) * 1000.0
+        onset_shift_ms = onset_shift_ms[np.isfinite(onset_shift_ms)]
+        if onset_shift_ms.size == 0:
+            continue
+        print(
+            f"{emg_channel.channel_name}: refined onset shift "
+            f"median={np.median(onset_shift_ms):.0f} ms | "
+            f"p95={np.quantile(onset_shift_ms, 0.95):.0f} ms"
+        )
 
 
 def main() -> None:
