@@ -21,6 +21,7 @@ DFA_STEP_SEC = 5.0
 DFA_SCALES = tuple(range(4, 17))
 DFA_THRESHOLD = 0.50
 POST_STOP_LACTATE_EXTENSION_SEC = 60.0
+MIN_UNIQUE_LACTATE_STAGES = 4
 MAX_ACCEPTABLE_ARTIFACT_SHARE = 0.05
 
 
@@ -259,9 +260,9 @@ def build_lactate_points(data: FulltestData) -> tuple[LactatePoint, ...]:
         )
 
     points = collapse_duplicate_powers(selected)
-    if len(points) < 5:
+    if len(points) < MIN_UNIQUE_LACTATE_STAGES:
         raise ValueError(
-            "Для modified Dmax нужно хотя бы 5 уникальных ступеней лактата "
+            "Для modified Dmax нужно хотя бы 4 уникальные ступени лактата "
             f"до stop_time + {POST_STOP_LACTATE_EXTENSION_SEC:.0f} с."
         )
     return points
@@ -326,7 +327,7 @@ def build_moddmax(data: FulltestData) -> ModDmaxResult:
     rise_indices = np.where(diffs > 0.4)[0]
     start_index = int(rise_indices[0]) if len(rise_indices) else 0
 
-    if len(points) < 4:
+    if len(points) < MIN_UNIQUE_LACTATE_STAGES:
         raise ValueError("Для cubic polynomial modified Dmax нужно минимум 4 точки.")
 
     poly = np.poly1d(np.polyfit(powers, lactates, 3))
