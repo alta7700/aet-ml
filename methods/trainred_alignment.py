@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ищет окно из полной выгрузки train.red, соответствующее записи из тест.h5."""
+"""Методы автоматического выравнивания окна train.red относительно тест.h5."""
 
 from __future__ import annotations
 
@@ -7,17 +7,10 @@ import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 
 import h5py
 import numpy as np
 import pandas as pd
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from methods.trainred_alignment import analyze_subject as analyze_subject_method
 
 
 # Для сопоставления сначала пробуем штатный сглаженный SmO2.
@@ -444,7 +437,7 @@ def main() -> None:
     subject_dirs = sorted(path for path in args.data_dir.iterdir() if path.is_dir())
 
     results = [
-        analyze_subject_method(
+        analyze_subject(
             subject_dir=subject_dir,
             step_sec=args.step_sec,
             export_matched_window=args.export_window,

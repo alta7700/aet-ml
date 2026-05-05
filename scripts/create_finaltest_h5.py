@@ -6,12 +6,18 @@ from __future__ import annotations
 import argparse
 import difflib
 from pathlib import Path
+import sys
 import unicodedata
 
 import h5py
 
 from create_test_plus_red_h5 import copy_h5_tree
-from visualize_lt2_from_fulltest import compute_lt2, load_fulltest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from methods.lt2 import compute_lt2, load_fulltest
 
 DEFAULT_SOURCE_FILENAME = "fulltest.h5"
 DEFAULT_OUTPUT_FILENAME = "finaltest.h5"

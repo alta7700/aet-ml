@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Строит интервалы педалирования и уточняет onset по ЭМГ из finaltest.h5."""
+"""Методы выделения циклов педалирования и уточнения onset по ЭМГ."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import math
 import unicodedata
 from dataclasses import dataclass, replace
 from pathlib import Path
-import sys
 from typing import Iterable
 
 from matplotlib.widgets import Slider
@@ -17,12 +16,6 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import butter, filtfilt, find_peaks, iirnotch
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from methods.pedal_cycles import detect_phases as detect_phases_method
 
 
 DATA_DIR = Path("/Users/tascan/Desktop/диссер/data")
@@ -1178,7 +1171,7 @@ def main() -> None:
     if not source_h5_path.exists():
         raise FileNotFoundError(f"Не найден файл '{source_h5_path}'.")
 
-    result = detect_phases_method(
+    result = detect_phases(
         participant_name=participant_name,
         source_h5_path=source_h5_path,
         sensor_mode=args.sensor,

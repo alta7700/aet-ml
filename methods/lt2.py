@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ищет LT2 по fulltest.h5 и визуализирует лактат, DFA-a1 и HHb."""
+"""Методы расчёта LT2 по лактату, RR и HHb."""
 
 from __future__ import annotations
 
@@ -7,20 +7,12 @@ import argparse
 import difflib
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 import unicodedata
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import PchipInterpolator
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from methods.lt2 import compute_lt2 as compute_lt2_method
-from methods.lt2 import load_fulltest as load_fulltest_method
 
 
 DEFAULT_FULLTEST_FILENAME = "fulltest.h5"
@@ -889,8 +881,8 @@ def main() -> None:
             "Сначала создайте его из тест+ред.h5."
         )
 
-    data = load_fulltest_method(fulltest_path)
-    result = compute_lt2_method(data)
+    data = load_fulltest(fulltest_path)
+    result = compute_lt2(data)
 
     print(f"Папка: {subject_dir.name}")
     print(f"Файл: {fulltest_path}")

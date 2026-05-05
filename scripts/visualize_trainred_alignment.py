@@ -8,6 +8,7 @@ import difflib
 import json
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 import unicodedata
 
 import matplotlib.pyplot as plt
@@ -16,7 +17,12 @@ import pandas as pd
 from matplotlib.widgets import Button, Slider
 
 from create_test_plus_red_h5 import DEFAULT_OUTPUT_FILENAME, create_test_plus_red_h5
-from find_trainred_h5_alignment import (
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from methods.trainred_alignment import (
     ALIGNMENT_FEATURES,
     classify_match,
     load_h5_smo2,
