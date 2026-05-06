@@ -20,6 +20,7 @@ DFA_WINDOW_SEC = 120.0
 DFA_STEP_SEC = 5.0
 DFA_SCALES = tuple(range(4, 17))
 DFA_THRESHOLD = 0.50
+DFA_MIN_PERSISTENCE_WINDOWS = 3
 POST_STOP_LACTATE_EXTENSION_SEC = 60.0
 MIN_UNIQUE_LACTATE_STAGES = 4
 MAX_ACCEPTABLE_ARTIFACT_SHARE = 0.05
@@ -568,7 +569,12 @@ def build_dfa_series(data: FulltestData) -> DfaResult:
 
 
 def find_dfa_crossing(centers_sec: np.ndarray, alpha1: np.ndarray) -> float | None:
-    """Ищет первый нисходящий переход DFA-a1 через 0.50."""
+    """Ищет первый нисходящий переход DFA-a1 через 0.50 с фильтром устойчивости.
+
+    Пересечение засчитывается только если следующие DFA_MIN_PERSISTENCE_WINDOWS
+    окон (= 15 с при шаге 5 с) тоже остаются ниже порога. Это исключает
+    кратковременные артефактные провалы, вызванные единичными плохими RR-окнами.
+    """
 
     finite_mask = np.isfinite(alpha1)
     centers = np.asarray(centers_sec, dtype=float)[finite_mask]
@@ -580,6 +586,16 @@ def find_dfa_crossing(centers_sec: np.ndarray, alpha1: np.ndarray) -> float | No
         left = float(values[index])
         right = float(values[index + 1])
         if left >= DFA_THRESHOLD and right < DFA_THRESHOLD and right != left:
+            # Проверяем устойчивость: следующие DFA_MIN_PERSISTENCE_WINDOWS окон
+            # должны оставаться ниже порога.
+            tail_start = index + 1
+            tail_end = tail_start + DFA_MIN_PERSISTENCE_WINDOWS
+            tail = values[tail_start:tail_end]
+            if len(tail) < DFA_MIN_PERSISTENCE_WINDOWS:
+                # Не хватает окон до конца записи — пересечение не подтверждено.
+                continue
+            if not np.all(tail < DFA_THRESHOLD):
+                continue
             fraction = (DFA_THRESHOLD - left) / (right - left)
             return float(centers[index] + fraction * (centers[index + 1] - centers[index]))
     return None
@@ -653,9 +669,14 @@ def piecewise_breakpoint(times_sec: np.ndarray, values: np.ndarray) -> float | N
 def build_hhb_markers(data: FulltestData, moddmax: ModDmaxResult) -> HhbResult:
     """Ищет HHb-кандидаты LT2 в окрестности лактатного интервала."""
 
-    margin_sec = 45.0
+    # Окно поиска ±60 с совпадает с окном refined-согласования в choose_refined_time.
+    # Верхняя граница ограничена stop_time, чтобы не захватывать recovery-зону.
+    margin_sec = 60.0
     window_start_sec = max(0.0, moddmax.interval_start_sec - margin_sec)
-    window_end_sec = moddmax.interval_end_sec + margin_sec
+    window_end_sec = min(
+        moddmax.interval_end_sec + margin_sec,
+        data.stop_time_sec,
+    )
 
     mask = (
         (data.hhb_times_sec >= window_start_sec - 1e-9)
@@ -709,8 +730,9 @@ def choose_refined_time(
 
     if hhb.breakpoint_time_sec is not None and extended_start <= hhb.breakpoint_time_sec <= extended_end:
         candidates.append(("HHb breakpoint", float(hhb.breakpoint_time_sec)))
-    elif hhb.peak_time_sec is not None and extended_start <= hhb.peak_time_sec <= extended_end:
-        candidates.append(("HHb peak", float(hhb.peak_time_sec)))
+    # HHb peak намеренно не используется как LT2-кандидат: физиологически пик HHb
+    # возникает позже LT2 и даёт систематическое смещение в сторону более позднего
+    # времени. Если breakpoint не найден — HHb не участвует в refined-согласовании.
 
     candidate_times = np.array([time_sec for _, time_sec in candidates], dtype=float)
     candidate_count = len(candidates)
@@ -790,6 +812,11 @@ def assess_label_quality(
             power_reasons_list.append(
                 f"stage_count<{MIN_STAGE_COUNT_HIGH_CONFIDENCE}"
             )
+        if stage_count == MIN_UNIQUE_LACTATE_STAGES:
+            # При n=4 кубический полином проходит через все точки точно
+            # (интерполяция, а не регрессия), поэтому PCHIP-расхождение
+            # тривиально близко к нулю и не является реальной проверкой устойчивости.
+            power_reasons_list.append("cubic_exact_interp_n4")
         if not power_reasons_list:
             power_reasons_list.append("within_medium_band")
         power_reasons = tuple(power_reasons_list)
