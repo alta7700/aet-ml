@@ -103,20 +103,22 @@ def preprocess_smo2(time: np.ndarray, smo2: np.ndarray,
 
 ```python
 def compute_smo2_baseline(smo2_smooth: np.ndarray, time: np.ndarray,
-                           step_60W_start_sec: float,
-                           step_60W_end_sec: float,
-                           use_last_sec: float = 60.0) -> float:
+                           step_30W_start_sec: float,
+                           step_30W_end_sec: float) -> float:
     """
-    Базовая линия = среднее SmO₂ в конце ступени 60 Вт.
-    Та же логика что и для ЭМГ — первая активная ступень.
+    Базовая линия = среднее SmO₂ за первую минуту теста, то есть за ступень 30 Вт.
+
+    В этом проекте baseline для NIRS специально унифицирован с EMG:
+    и ЭМГ, и Train.Red нормируются на один и тот же ранний опорный участок.
+    Это упрощает сопоставление мультимодальных признаков по окнам и убирает
+    лишнюю методическую неоднородность между блоками пайплайна.
 
     Абсолютные значения SmO₂ несопоставимы между испытуемыми
     из-за разной ATT (толщина подкожного жира).
     Нормировка на baseline убирает inter-subject offset.
     """
-    end_idx   = np.searchsorted(time, step_60W_end_sec)
-    start_idx = np.searchsorted(time, step_60W_end_sec - use_last_sec)
-    start_idx = max(start_idx, np.searchsorted(time, step_60W_start_sec))
+    start_idx = np.searchsorted(time, step_30W_start_sec)
+    end_idx   = np.searchsorted(time, step_30W_end_sec)
     return float(np.mean(smo2_smooth[start_idx:end_idx]))
 
 
@@ -211,7 +213,7 @@ NIRS_FEATURE_NAMES = [
 | Порог артефакта | 5% за 1 пакет | Физиологически невозможный скачок SmO₂ |
 | Целевая частота | 4 Гц | Соответствует Moxy, без апсемплинга |
 | Сглаживание | Savitzky-Golay, окно 10 с, порядок 2 | Сохраняет форму кривой |
-| Базовая линия | Последние 60 с ступени 60 Вт | Первая активная стационарная ступень |
+| Базовая линия | Вся первая минута теста (ступень 30 Вт) | Унификация с EMG и единый ранний baseline для мультимодального пайплайна |
 | Нормализация | baseline − smo2 | Убирает межсубъектный offset по ATT |
 
 ---

@@ -34,8 +34,10 @@
 
 ### Метаданные LT2
 - `lt2_method`
+- `lt2_lactate_stage_count`
 - `lt2_power_w`
 - `lt2_lactate_mmol`
+- `lt2_time_center_sec`
 - `lt2_time_sec`
 - `lt2_interval_start_sec`
 - `lt2_interval_end_sec`
@@ -51,6 +53,15 @@
 - `lt2_hhb_peak_time_sec`
 - `lt2_refined_time_sec`
 - `lt2_refined_sources`
+- `lt2_refined_valid`
+- `lt2_refined_window_start_sec`
+- `lt2_refined_window_end_sec`
+- `lt2_refined_spread_sec`
+- `lt2_refined_source_count`
+- `lt2_power_label_quality`
+- `lt2_power_label_quality_reasons`
+- `lt2_time_label_quality`
+- `lt2_time_label_quality_reasons`
 
 ## Каналы в `/channels`
 

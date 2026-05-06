@@ -23,6 +23,12 @@ DFA_THRESHOLD = 0.50
 POST_STOP_LACTATE_EXTENSION_SEC = 60.0
 MIN_UNIQUE_LACTATE_STAGES = 4
 MAX_ACCEPTABLE_ARTIFACT_SHARE = 0.05
+REFINED_MAX_SPREAD_SEC = 60.0
+REFINED_HIGH_SPREAD_SEC = 30.0
+PCHIP_DELTA_POWER_HIGH_W = 10.0
+PCHIP_DELTA_POWER_MEDIUM_W = 25.0
+MIN_STAGE_COUNT_HIGH_CONFIDENCE = 5
+
 
 
 @dataclass(frozen=True)
@@ -101,6 +107,30 @@ class HhbResult:
 
 
 @dataclass(frozen=True)
+class RefinedTimingResult:
+    """Результат уточнения времени LT2 по непрерывным маркерам."""
+
+    time_sec: float
+    sources: tuple[str, ...]
+    valid: bool
+    window_start_sec: float | None
+    window_end_sec: float | None
+    spread_sec: float | None
+    source_count: int
+
+
+@dataclass(frozen=True)
+class LabelQualityResult:
+    """Качество LT2-метки для анализа моделей."""
+
+    stage_count: int
+    power_quality: str
+    power_reasons: tuple[str, ...]
+    time_quality: str
+    time_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Lt2Result:
     """Итог по LT2: базовая лактатная оценка и уточняющие кандидаты."""
 
@@ -109,6 +139,16 @@ class Lt2Result:
     hhb: HhbResult
     refined_time_sec: float
     refined_sources: tuple[str, ...]
+    refined_valid: bool
+    refined_window_start_sec: float | None
+    refined_window_end_sec: float | None
+    refined_spread_sec: float | None
+    refined_source_count: int
+    label_stage_count: int
+    power_label_quality: str
+    power_label_quality_reasons: tuple[str, ...]
+    time_label_quality: str
+    time_label_quality_reasons: tuple[str, ...]
 
 
 def parse_args() -> argparse.Namespace:
@@ -649,8 +689,16 @@ def choose_refined_time(
     moddmax: ModDmaxResult,
     dfa: DfaResult,
     hhb: HhbResult,
-) -> tuple[float, tuple[str, ...]]:
-    """Выбирает итоговое уточнённое время LT2 по согласованным маркерам."""
+) -> RefinedTimingResult:
+    """Выбирает итоговое уточнённое время LT2 по согласованным маркерам.
+
+    Здесь принципиально различаются два уровня:
+    1. fallback-время по одному modDmax;
+    2. самостоятельное refined-время, пригодное как secondary target.
+
+    Refined-время считается валидным только если помимо modDmax есть хотя бы
+    один непрерывный маркер и их согласованный разброс не превышает 60 секунд.
+    """
 
     candidates: list[tuple[str, float]] = [("modDmax", moddmax.lt2_time_sec)]
     extended_start = moddmax.interval_start_sec - 60.0
@@ -665,16 +713,152 @@ def choose_refined_time(
         candidates.append(("HHb peak", float(hhb.peak_time_sec)))
 
     candidate_times = np.array([time_sec for _, time_sec in candidates], dtype=float)
-    if len(candidate_times) == 1:
-        return float(candidate_times[0]), (candidates[0][0],)
+    candidate_count = len(candidates)
+    spread_sec = (
+        None
+        if candidate_count < 2
+        else float(candidate_times.max() - candidate_times.min())
+    )
+    refined_valid = (
+        candidate_count >= 2
+        and spread_sec is not None
+        and spread_sec <= REFINED_MAX_SPREAD_SEC
+    )
 
-    spread_sec = float(candidate_times.max() - candidate_times.min())
-    if spread_sec <= 60.0:
-        return float(np.median(candidate_times)), tuple(name for name, _ in candidates)
+    if refined_valid:
+        return RefinedTimingResult(
+            time_sec=float(np.median(candidate_times)),
+            sources=tuple(name for name, _ in candidates),
+            valid=True,
+            window_start_sec=float(candidate_times.min()),
+            window_end_sec=float(candidate_times.max()),
+            spread_sec=spread_sec,
+            source_count=candidate_count,
+        )
 
-    # Если маркеры расходятся слишком сильно, не делаем вид, что знаем
-    # «точную секунду», и оставляем лактатный центр как якорь.
-    return float(moddmax.lt2_time_sec), ("modDmax",)
+    # Если маркеры отсутствуют или расходятся слишком сильно, не делаем вид,
+    # что знаем уточнённое время. В таком случае итог остаётся на лактатном
+    # центре, а refined-поля помечаются как невалидные.
+    return RefinedTimingResult(
+        time_sec=float(moddmax.lt2_time_sec),
+        sources=("modDmax",),
+        valid=False,
+        window_start_sec=None,
+        window_end_sec=None,
+        spread_sec=spread_sec,
+        source_count=0,
+    )
+
+
+def assess_label_quality(
+    moddmax: ModDmaxResult,
+    refined: RefinedTimingResult,
+) -> LabelQualityResult:
+    """Оценивает качество LT2-метки для power- и time-таргетов.
+
+    Здесь принципиально разделяются:
+    - качество основного таргета по мощности;
+    - качество secondary target по уточнённому времени.
+
+    Один общий флаг здесь был бы слишком грубым и смешивал бы два разных
+    уровня неопределённости.
+    """
+
+    stage_count = len(moddmax.points)
+    pchip_delta_power_w = abs(moddmax.lt2_power_w - moddmax.pchip_lt2_power_w)
+
+    if (
+        pchip_delta_power_w <= PCHIP_DELTA_POWER_HIGH_W
+        and stage_count >= MIN_STAGE_COUNT_HIGH_CONFIDENCE
+    ):
+        power_quality = "high"
+        power_reasons = (
+            f"pchip_delta_power_w<={PCHIP_DELTA_POWER_HIGH_W:.0f}",
+            f"stage_count>={MIN_STAGE_COUNT_HIGH_CONFIDENCE}",
+        )
+    elif (
+        pchip_delta_power_w <= PCHIP_DELTA_POWER_MEDIUM_W
+        and stage_count >= MIN_UNIQUE_LACTATE_STAGES
+    ):
+        power_quality = "medium"
+        power_reasons_list = []
+        if pchip_delta_power_w > PCHIP_DELTA_POWER_HIGH_W:
+            power_reasons_list.append(
+                f"pchip_delta_power_w>{PCHIP_DELTA_POWER_HIGH_W:.0f}"
+            )
+        if stage_count < MIN_STAGE_COUNT_HIGH_CONFIDENCE:
+            power_reasons_list.append(
+                f"stage_count<{MIN_STAGE_COUNT_HIGH_CONFIDENCE}"
+            )
+        if not power_reasons_list:
+            power_reasons_list.append("within_medium_band")
+        power_reasons = tuple(power_reasons_list)
+    else:
+        power_quality = "low"
+        power_reasons_list = []
+        if pchip_delta_power_w > PCHIP_DELTA_POWER_MEDIUM_W:
+            power_reasons_list.append(
+                f"pchip_delta_power_w>{PCHIP_DELTA_POWER_MEDIUM_W:.0f}"
+            )
+        if stage_count < MIN_UNIQUE_LACTATE_STAGES:
+            power_reasons_list.append(
+                f"stage_count<{MIN_UNIQUE_LACTATE_STAGES}"
+            )
+        if not power_reasons_list:
+            power_reasons_list.append("outside_confidence_band")
+        power_reasons = tuple(power_reasons_list)
+
+    if (
+        refined.valid
+        and refined.spread_sec is not None
+        and refined.spread_sec <= REFINED_HIGH_SPREAD_SEC
+        and power_quality == "high"
+    ):
+        time_quality = "high"
+        time_reasons = (
+            "refined_valid",
+            f"spread_sec<={REFINED_HIGH_SPREAD_SEC:.0f}",
+            "power_quality=high",
+        )
+    elif (
+        refined.valid
+        and refined.spread_sec is not None
+        and refined.spread_sec <= REFINED_MAX_SPREAD_SEC
+        and power_quality in {"high", "medium"}
+    ):
+        time_quality = "medium"
+        time_reasons_list = ["refined_valid"]
+        if refined.spread_sec > REFINED_HIGH_SPREAD_SEC:
+            time_reasons_list.append(
+                f"spread_sec>{REFINED_HIGH_SPREAD_SEC:.0f}"
+            )
+        if power_quality != "high":
+            time_reasons_list.append(f"power_quality={power_quality}")
+        if len(time_reasons_list) == 1:
+            time_reasons_list.append("within_medium_band")
+        time_reasons = tuple(time_reasons_list)
+    else:
+        time_quality = "low"
+        time_reasons_list = []
+        if not refined.valid:
+            time_reasons_list.append("refined_invalid")
+        elif refined.spread_sec is not None and refined.spread_sec > REFINED_MAX_SPREAD_SEC:
+            time_reasons_list.append(
+                f"spread_sec>{REFINED_MAX_SPREAD_SEC:.0f}"
+            )
+        if power_quality == "low":
+            time_reasons_list.append("power_quality=low")
+        if not time_reasons_list:
+            time_reasons_list.append("outside_confidence_band")
+        time_reasons = tuple(time_reasons_list)
+
+    return LabelQualityResult(
+        stage_count=stage_count,
+        power_quality=power_quality,
+        power_reasons=power_reasons,
+        time_quality=time_quality,
+        time_reasons=time_reasons,
+    )
 
 
 def seconds_to_mmss(seconds: float | None) -> str:
@@ -860,13 +1044,24 @@ def compute_lt2(data: FulltestData) -> Lt2Result:
     moddmax = build_moddmax(data)
     dfa = build_dfa_series(data)
     hhb = build_hhb_markers(data, moddmax)
-    refined_time_sec, refined_sources = choose_refined_time(moddmax, dfa, hhb)
+    refined = choose_refined_time(moddmax, dfa, hhb)
+    quality = assess_label_quality(moddmax, refined)
     return Lt2Result(
         moddmax=moddmax,
         dfa=dfa,
         hhb=hhb,
-        refined_time_sec=refined_time_sec,
-        refined_sources=refined_sources,
+        refined_time_sec=refined.time_sec,
+        refined_sources=refined.sources,
+        refined_valid=refined.valid,
+        refined_window_start_sec=refined.window_start_sec,
+        refined_window_end_sec=refined.window_end_sec,
+        refined_spread_sec=refined.spread_sec,
+        refined_source_count=refined.source_count,
+        label_stage_count=quality.stage_count,
+        power_label_quality=quality.power_quality,
+        power_label_quality_reasons=quality.power_reasons,
+        time_label_quality=quality.time_quality,
+        time_label_quality_reasons=quality.time_reasons,
     )
 
 

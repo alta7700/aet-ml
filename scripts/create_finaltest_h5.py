@@ -21,6 +21,7 @@ from methods.lt2 import compute_lt2, load_fulltest
 
 DEFAULT_SOURCE_FILENAME = "fulltest.h5"
 DEFAULT_OUTPUT_FILENAME = "finaltest.h5"
+ID_FILENAME = "ID"
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,18 +87,46 @@ def resolve_subject_dir(data_dir: Path, subject_name: str) -> Path:
     )
 
 
-def write_lt2_metadata(dest_path: Path) -> dict[str, float | str | int | None]:
+def load_subject_id(subject_dir: Path) -> str:
+    """Читает технический ID участника из файла ID."""
+
+    id_path = subject_dir / ID_FILENAME
+    if not id_path.exists():
+        raise FileNotFoundError(
+            f"В папке участника нет файла {ID_FILENAME}: {id_path}. "
+            "Сначала проставьте ID."
+        )
+
+    subject_id = id_path.read_text(encoding="utf-8").strip()
+    if not subject_id:
+        raise ValueError(f"Файл {id_path} пустой.")
+    if not subject_id.isascii():
+        raise ValueError(f"ID в файле {id_path} должен быть ASCII-строкой.")
+    if any(symbol.isspace() for symbol in subject_id):
+        raise ValueError(f"ID в файле {id_path} не должен содержать пробелы.")
+    return subject_id
+
+
+def write_lt2_metadata(
+    dest_path: Path,
+    subject_id: str,
+) -> dict[str, float | str | int | None]:
     """Считает LT2 по fulltest.h5 и записывает основные метрики в attrs."""
 
     data = load_fulltest(dest_path)
     result = compute_lt2(data)
 
     refined_sources = ",".join(result.refined_sources)
+    power_quality_reasons = ",".join(result.power_label_quality_reasons)
+    time_quality_reasons = ",".join(result.time_label_quality_reasons)
 
     payload: dict[str, float | str | int | None] = {
+        "subject_id": subject_id,
         "lt2_method": "moddmax_cubic",
+        "lt2_lactate_stage_count": int(result.label_stage_count),
         "lt2_power_w": float(result.moddmax.lt2_power_w),
         "lt2_lactate_mmol": float(result.moddmax.lt2_lactate_mmol),
+        "lt2_time_center_sec": float(result.moddmax.lt2_time_sec),
         "lt2_time_sec": float(result.moddmax.lt2_time_sec),
         "lt2_interval_start_sec": float(result.moddmax.interval_start_sec),
         "lt2_interval_end_sec": float(result.moddmax.interval_end_sec),
@@ -123,6 +152,27 @@ def write_lt2_metadata(dest_path: Path) -> dict[str, float | str | int | None]:
         ),
         "lt2_refined_time_sec": float(result.refined_time_sec),
         "lt2_refined_sources": refined_sources,
+        "lt2_refined_valid": int(result.refined_valid),
+        "lt2_refined_window_start_sec": (
+            float("nan")
+            if result.refined_window_start_sec is None
+            else float(result.refined_window_start_sec)
+        ),
+        "lt2_refined_window_end_sec": (
+            float("nan")
+            if result.refined_window_end_sec is None
+            else float(result.refined_window_end_sec)
+        ),
+        "lt2_refined_spread_sec": (
+            float("nan")
+            if result.refined_spread_sec is None
+            else float(result.refined_spread_sec)
+        ),
+        "lt2_refined_source_count": int(result.refined_source_count),
+        "lt2_power_label_quality": result.power_label_quality,
+        "lt2_power_label_quality_reasons": power_quality_reasons,
+        "lt2_time_label_quality": result.time_label_quality,
+        "lt2_time_label_quality_reasons": time_quality_reasons,
     }
 
     with h5py.File(dest_path, "a") as handle:
@@ -141,6 +191,7 @@ def write_lt2_metadata(dest_path: Path) -> dict[str, float | str | int | None]:
 def create_finaltest_h5(
     source_h5_path: Path,
     output_path: Path,
+    subject_id: str,
     force: bool,
 ) -> dict[str, float | str | int | None]:
     """Копирует fulltest.h5 и дописывает LT2-метрики."""
@@ -156,7 +207,10 @@ def create_finaltest_h5(
         dest_path=output_path,
         force=force,
     )
-    return write_lt2_metadata(dest_path=output_path)
+    return write_lt2_metadata(
+        dest_path=output_path,
+        subject_id=subject_id,
+    )
 
 
 def main() -> None:
@@ -164,6 +218,7 @@ def main() -> None:
 
     args = parse_args()
     subject_dir = resolve_subject_dir(args.data_dir, args.subject)
+    subject_id = load_subject_id(subject_dir)
 
     source_h5_path = args.source or (subject_dir / DEFAULT_SOURCE_FILENAME)
     output_path = args.output or (subject_dir / DEFAULT_OUTPUT_FILENAME)
@@ -171,10 +226,12 @@ def main() -> None:
     payload = create_finaltest_h5(
         source_h5_path=source_h5_path,
         output_path=output_path,
+        subject_id=subject_id,
         force=args.force,
     )
 
     print(f"Папка: {subject_dir.name}")
+    print(f"ID участника: {subject_id}")
     print(f"Источник HDF5: {source_h5_path}")
     print(f"LT2 method: {payload['lt2_method']}")
     print(
@@ -196,9 +253,25 @@ def main() -> None:
         f"расхождение {float(payload['lt2_pchip_delta_power_w']):.1f} Вт"
     )
     print(
+        "Качество power-label: "
+        f"{payload['lt2_power_label_quality']} "
+        f"({payload['lt2_power_label_quality_reasons']})"
+    )
+    print(
+        "Качество time-label: "
+        f"{payload['lt2_time_label_quality']} "
+        f"({payload['lt2_time_label_quality_reasons']})"
+    )
+    print(
         "Итоговое время LT2: "
         f"{float(payload['lt2_refined_time_sec']):.1f} с "
         f"({payload['lt2_refined_sources']})"
+    )
+    print(
+        "Refined-valid: "
+        f"{int(payload['lt2_refined_valid'])} | "
+        f"sources={int(payload['lt2_refined_source_count'])} | "
+        f"spread={float(payload['lt2_refined_spread_sec']):.1f} с"
     )
     print(f"Создан файл: {output_path}")
 
