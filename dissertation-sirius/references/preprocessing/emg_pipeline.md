@@ -32,7 +32,7 @@ VL_distal (1926 Гц)    VL_proximal (1926 Гц)
         └──────┬────────────────┘
                │
         БЛОК 0: Препроцессинг
-          notch 50 Гц → [bandpass 20–450 Гц] → нормализация на 60 Вт
+          notch 50 Гц → [bandpass 20–450 Гц] → нормализация на первую минуту (30 Вт)
                │
         БЛОК 1: Фазовая сегментация (из gyroscope_pca)
           → 4 потока: dist_push, dist_pull, prox_push, prox_pull
@@ -74,23 +74,21 @@ def preprocess_emg(raw: np.ndarray, fs: int = 1926,
 
 
 def compute_baseline_rms(emg_filtered: np.ndarray,
-                          step_60W_start_sec: float,
-                          step_60W_end_sec: float,
-                          fs: int = 1926,
-                          use_last_sec: float = 60.0) -> float:
+                          step_30W_start_sec: float,
+                          step_30W_end_sec: float,
+                          fs: int = 1926) -> float:
     """
-    Baseline = RMS последних 60 с ступени 60 Вт.
+    Baseline = RMS первой минуты теста, то есть ступени 30 Вт.
 
-    Почему не 30 Вт: первая ступень (1 мин) — почти пассивное вращение,
-    мышца минимально активна, база нормализации нестабильна.
-    60 Вт — первая ступень с реальной мышечной активностью.
+    В этом проекте baseline фиксируется по протоколу жёстко:
+    вся первая ступень 30 Вт используется как опорный участок
+    для межсессионной и межсубъектной сопоставимости.
 
     Важно: нормализация делается отдельно для каждого датчика
     (distal и proximal имеют разные абсолютные уровни активации).
     """
-    end_idx   = int(step_60W_end_sec * fs)
-    start_idx = int((step_60W_end_sec - use_last_sec) * fs)
-    start_idx = max(start_idx, int(step_60W_start_sec * fs))
+    start_idx = int(step_30W_start_sec * fs)
+    end_idx   = int(step_30W_end_sec * fs)
     return float(np.sqrt(np.mean(emg_filtered[start_idx:end_idx]**2)))
 
 
@@ -296,7 +294,7 @@ BASELINE_FEATURES = [
 | Расположение | Снизу: Avanti → Train.Red → Avanti | NIRS между ЭМГ-зонами |
 | Notch | 50 Гц, Q=30 | Сетевая помеха |
 | Bandpass | 20–450 Гц, Butterworth 4-й пор. | Рабочий диапазон sEMG |
-| Нормализация | RMS последних 60 с ступени 60 Вт, отдельно для каждого датчика | Первая активная стационарная ступень |
+| Нормализация | RMS первой минуты теста, то есть ступени 30 Вт, отдельно для каждого датчика | Протокольно фиксированный baseline для всех сессий |
 | Вейвлет | db4, level=6, уровни d2–d5 | Стандарт для sEMG [Wang et al., 2018] |
 | Окно | 30 с, шаг 5 с | Компромисс: HRV требует ≥16 с для DFA-α1 |
 | Welch nperseg | 512 | Частотное разрешение ~3.8 Гц |

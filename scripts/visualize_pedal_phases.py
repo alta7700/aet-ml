@@ -28,9 +28,9 @@ from methods.pedal_cycles import detect_phases as detect_phases_method
 DATA_DIR = Path("/Users/tascan/Desktop/диссер/data")
 DEFAULT_FILE_NAME = "finaltest.h5"
 DEFAULT_OUTPUT_NAME = "pedal_phases.json"
-DEFAULT_CALIBRATION_POWER_W = 60.0
-DEFAULT_CALIBRATION_TAIL_SEC = 75.0
-DEFAULT_CALIBRATION_MARGIN_SEC = 15.0
+DEFAULT_CALIBRATION_POWER_W = 30.0
+DEFAULT_CALIBRATION_TAIL_SEC = 60.0
+DEFAULT_CALIBRATION_MARGIN_SEC = 0.0
 DEFAULT_MIN_CADENCE_RPM = 50.0
 DEFAULT_MAX_CADENCE_RPM = 120.0
 DEFAULT_BANDPASS_LOW_HZ = 0.4
@@ -77,6 +77,7 @@ class SignalChannel:
 
     channel_name: str
     sample_rate_hz: float
+    baseline_rms: float
     timestamps_sec: np.ndarray
     values: np.ndarray
     filtered_values: np.ndarray | None = None
@@ -114,7 +115,8 @@ class PhaseDetectionResult:
     source_h5_path: Path
     selected_sensor: SensorProjection
     alternate_sensor: SensorProjection | None
-    stage_60w: StageInterval
+    normalization_stage: StageInterval
+    calibration_stage: StageInterval
     calibration_start_sec: float
     calibration_end_sec: float
     cycles: tuple[CyclePhase, ...]
@@ -345,11 +347,11 @@ def bandpass_pedaling(signal: np.ndarray, sample_rate_hz: float) -> np.ndarray:
 def fix_projection_sign(
     filtered_signal: np.ndarray,
     timestamps_sec: np.ndarray,
-    stage_60w: StageInterval,
+    calibration_stage: StageInterval,
 ) -> np.ndarray:
-    """Делает первый значимый пик на ступени 60 Вт положительным."""
-    inspection_mask = (timestamps_sec >= stage_60w.start_sec) & (
-        timestamps_sec <= min(stage_60w.end_sec, stage_60w.start_sec + 20.0)
+    """Делает первый значимый пик в калибровочной ступени положительным."""
+    inspection_mask = (timestamps_sec >= calibration_stage.start_sec) & (
+        timestamps_sec <= min(calibration_stage.end_sec, calibration_stage.start_sec + 20.0)
     )
     inspection = filtered_signal[inspection_mask]
     if inspection.size == 0:
@@ -384,7 +386,7 @@ def build_sensor_projection(
     sensor_name: str,
     calibration_start_sec: float,
     calibration_end_sec: float,
-    stage_60w: StageInterval,
+    calibration_stage: StageInterval,
     min_cadence_rpm: float,
     max_cadence_rpm: float,
 ) -> tuple[SensorProjection, np.ndarray]:
@@ -414,7 +416,7 @@ def build_sensor_projection(
     projected_filtered = fix_projection_sign(
         projected_filtered,
         timestamps_sec=timestamps_sec,
-        stage_60w=stage_60w,
+        calibration_stage=calibration_stage,
     )
 
     calibration_filtered = projected_filtered[calibration_mask]
@@ -666,9 +668,9 @@ def detect_phases(
     with h5py.File(source_h5_path, "r") as handle:
         anchor_ms = float(handle["channels/moxy.smo2/timestamps"][0])
         stages = load_power_stages(handle, anchor_ms=anchor_ms)
-        stage_60w = find_stage_by_power(stages, DEFAULT_CALIBRATION_POWER_W)
+        stage_30w = find_stage_by_power(stages, DEFAULT_CALIBRATION_POWER_W)
         calibration_start_sec, calibration_end_sec = build_calibration_window(
-            stage=stage_60w,
+            stage=stage_30w,
             tail_sec=calibration_tail_sec,
             margin_sec=calibration_margin_sec,
         )
@@ -686,7 +688,7 @@ def detect_phases(
                 sensor_name=sensor_name,
                 calibration_start_sec=calibration_start_sec,
                 calibration_end_sec=calibration_end_sec,
-                stage_60w=stage_60w,
+                calibration_stage=stage_30w,
                 min_cadence_rpm=min_cadence_rpm,
                 max_cadence_rpm=max_cadence_rpm,
             )
@@ -725,7 +727,8 @@ def detect_phases(
         source_h5_path=source_h5_path,
         selected_sensor=selected_sensor,
         alternate_sensor=alternate_sensor,
-        stage_60w=stage_60w,
+        normalization_stage=stage_30w,
+        calibration_stage=stage_30w,
         calibration_start_sec=calibration_start_sec,
         calibration_end_sec=calibration_end_sec,
         cycles=cycles,
@@ -788,6 +791,17 @@ def build_output_payload(result: PhaseDetectionResult) -> dict[str, object]:
             "Нагрузка = восходящая ветвь PCA-проекции от локального минимума до следующего пика; "
             "отдых = нисходящая ветвь от пика до следующего локального минимума."
         ),
+        "emg_normalization": {
+            "description": (
+                "ЭМГ, полосовой ЭМГ и огибающая нормируются на baseline RMS "
+                "по первой минуте теста, то есть по ступени 30 Вт, отдельно для каждого канала."
+            ),
+            "normalization_stage": {
+                "start_sec": result.normalization_stage.start_sec,
+                "end_sec": result.normalization_stage.end_sec,
+                "power_w": result.normalization_stage.power_w,
+            },
+        },
         "emg_onset_refinement": {
             "description": (
                 "Onset уточняется только по началу активации. Порог = median + k*MAD "
@@ -806,10 +820,15 @@ def build_output_payload(result: PhaseDetectionResult) -> dict[str, object]:
             "calibration_mean": result.selected_sensor.calibration_mean.tolist(),
         },
         "alternate_sensor": alternate,
-        "stage_60w": {
-            "start_sec": result.stage_60w.start_sec,
-            "end_sec": result.stage_60w.end_sec,
-            "power_w": result.stage_60w.power_w,
+        "normalization_stage": {
+            "start_sec": result.normalization_stage.start_sec,
+            "end_sec": result.normalization_stage.end_sec,
+            "power_w": result.normalization_stage.power_w,
+        },
+        "calibration_stage": {
+            "start_sec": result.calibration_stage.start_sec,
+            "end_sec": result.calibration_stage.end_sec,
+            "power_w": result.calibration_stage.power_w,
         },
         "calibration_window": {
             "start_sec": result.calibration_start_sec,
@@ -825,6 +844,7 @@ def build_output_payload(result: PhaseDetectionResult) -> dict[str, object]:
             {
                 "channel_name": emg_channel.channel_name,
                 "sample_rate_hz": emg_channel.sample_rate_hz,
+                "baseline_rms": emg_channel.baseline_rms,
             }
             for emg_channel in result.emg_channels
         ],
@@ -885,7 +905,7 @@ def render_emg_axis(
         ax.set_xlim(window_start_sec, window_end_sec)
         ax.set_title(f"{emg_channel.channel_name}: нет точек в окне")
         ax.set_xlabel("Время, с")
-        ax.set_ylabel("ЭМГ, В")
+        ax.set_ylabel("ЭМГ, отн. ед.")
         return
 
     overlay_values = build_pca_overlay_for_window(
@@ -987,8 +1007,33 @@ def render_emg_axis(
         pull_values = np.array([np.nan], dtype=float)
 
     flags: list[str] = []
-    if result.stage_60w.start_sec < window_end_sec and result.stage_60w.end_sec > window_start_sec:
-        flags.append("ступень 60 Вт")
+    if (
+        result.normalization_stage.start_sec < window_end_sec
+        and result.normalization_stage.end_sec > window_start_sec
+    ):
+        if math.isclose(
+            result.normalization_stage.power_w,
+            result.calibration_stage.power_w,
+            rel_tol=0.0,
+            abs_tol=0.5,
+        ):
+            flags.append(
+                f"ступень {result.normalization_stage.power_w:.0f} Вт "
+                "(baseline и PCA-калибровка)"
+            )
+        else:
+            flags.append(f"ступень {result.normalization_stage.power_w:.0f} Вт (baseline)")
+    if (
+        result.calibration_stage.start_sec < window_end_sec
+        and result.calibration_stage.end_sec > window_start_sec
+        and not math.isclose(
+            result.normalization_stage.power_w,
+            result.calibration_stage.power_w,
+            rel_tol=0.0,
+            abs_tol=0.5,
+        )
+    ):
+        flags.append(f"ступень {result.calibration_stage.power_w:.0f} Вт (PCA-калибровка)")
     if result.calibration_start_sec < window_end_sec and result.calibration_end_sec > window_start_sec:
         flags.append("окно калибровки PCA")
     suffix = f" | {', '.join(flags)}" if flags else ""
@@ -1014,7 +1059,7 @@ def render_emg_axis(
         f"{emg_channel.channel_name} | окно {window_start_sec:.1f}–{window_end_sec:.1f} с{suffix}"
     )
     ax.set_xlabel("Время, с")
-    ax.set_ylabel("ЭМГ, В")
+    ax.set_ylabel("ЭМГ, отн. ед.")
     ax.legend(loc="upper left")
 
 
@@ -1137,9 +1182,25 @@ def describe_result(result: PhaseDetectionResult) -> None:
             f"(score={result.alternate_sensor.autocorr_score:.3f})"
         )
     print(
-        f"Ступень калибровки: {result.stage_60w.power_w:.0f} Вт | "
-        f"{result.stage_60w.start_sec:.2f}–{result.stage_60w.end_sec:.2f} с"
+        f"Ступень нормализации ЭМГ: {result.normalization_stage.power_w:.0f} Вт | "
+        f"{result.normalization_stage.start_sec:.2f}–{result.normalization_stage.end_sec:.2f} с"
     )
+    if math.isclose(
+        result.normalization_stage.power_w,
+        result.calibration_stage.power_w,
+        rel_tol=0.0,
+        abs_tol=0.5,
+    ):
+        print(
+            f"Ступень PCA-калибровки: {result.calibration_stage.power_w:.0f} Вт | "
+            f"{result.calibration_stage.start_sec:.2f}–{result.calibration_stage.end_sec:.2f} с "
+            "(совпадает с baseline)"
+        )
+    else:
+        print(
+            f"Ступень PCA-калибровки: {result.calibration_stage.power_w:.0f} Вт | "
+            f"{result.calibration_stage.start_sec:.2f}–{result.calibration_stage.end_sec:.2f} с"
+        )
     print(
         f"Окно калибровки PCA: {result.calibration_start_sec:.2f}–"
         f"{result.calibration_end_sec:.2f} с"
@@ -1166,6 +1227,10 @@ def describe_result(result: PhaseDetectionResult) -> None:
             f"{emg_channel.channel_name}: refined onset shift "
             f"median={np.median(onset_shift_ms):.0f} ms | "
             f"p95={np.quantile(onset_shift_ms, 0.95):.0f} ms"
+        )
+        print(
+            f"{emg_channel.channel_name}: baseline RMS на 30 Вт = "
+            f"{emg_channel.baseline_rms:.6f}"
         )
 
 
@@ -1199,7 +1264,7 @@ def main() -> None:
     zoom_start_sec = (
         args.zoom_start_sec
         if args.zoom_start_sec is not None
-        else max(result.stage_60w.start_sec + 5.0, result.calibration_start_sec - 5.0)
+        else max(result.calibration_stage.start_sec + 5.0, result.calibration_start_sec - 5.0)
     )
     plot_result(
         result=result,
