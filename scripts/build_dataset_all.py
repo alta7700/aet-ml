@@ -118,14 +118,18 @@ def main() -> None:
     # ── Шаг 2: targets ──
     _step_header(2, "targets.parquet")
     targets_path = d / "targets.parquet"
+    lt1_labels_path = d / "lt1_labels.parquet"
     if not _should_skip(targets_path, args.force):
         t0 = time.perf_counter()
         targets_df = build_targets_table(
             subjects_path=subjects_path,
             windows_path=windows_path,
+            lt1_labels_path=lt1_labels_path if lt1_labels_path.exists() else None,
         )
         save_parquet(targets_df, targets_path, force=True)
-        print(f"  ✓  {len(targets_df)} таргетов за {time.perf_counter() - t0:.1f} с")
+        has_lt1 = "target_time_to_lt1_sec" in targets_df.columns
+        lt1_tag = f", LT1-таргеты {'добавлены' if has_lt1 else 'отсутствуют'}"
+        print(f"  ✓  {len(targets_df)} таргетов за {time.perf_counter() - t0:.1f} с{lt1_tag}")
 
     # ── Шаг 3: EMG + кинематика ──
     _step_header(3, "features_emg_kinematics.parquet + session_params.parquet")

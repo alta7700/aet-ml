@@ -97,7 +97,13 @@ def build_merged_table(
     merged = windows_df[available_windows_cols].copy()
 
     # ── Таргеты ──
-    target_cols = [c for c in targets_df.columns if c in _KEY_COLS or c.startswith(_TARGET_PREFIX)]
+    # Берём колонки с префиксом target_, а также lt1_* (метаданные LT1-метки)
+    target_cols = [
+        c for c in targets_df.columns
+        if c in _KEY_COLS
+        or c.startswith(_TARGET_PREFIX)
+        or c.startswith("lt1_")
+    ]
     merged = merged.merge(
         targets_df[target_cols],
         on=_KEY_COLS,
