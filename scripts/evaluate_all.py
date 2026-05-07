@@ -175,6 +175,9 @@ def _interactions_norm(df: pd.DataFrame) -> pd.DataFrame:
 
 # ─── Фабрики моделей ─────────────────────────────────────────────────────────
 
+from sklearn.ensemble import GradientBoostingRegressor
+
+
 def _elasticnet():
     return ElasticNet(alpha=0.5, l1_ratio=0.9, max_iter=5000, tol=1e-4,
                       fit_intercept=True, random_state=42)
@@ -186,20 +189,28 @@ def _huber():
     return HuberRegressor(epsilon=1.35, alpha=0.0001, max_iter=500,
                           fit_intercept=True, warm_start=False)
 
-
-# ─── Kalman постобработка (v0002) ─────────────────────────────────────────────
-
-_KALMAN_SIGMA_PROCESS = 30.0   # сек — неопределённость перехода
-_KALMAN_SIGMA_OBS = 120.0      # сек — доверие к модели (~2×MAE)
+def _gbm():
+    return GradientBoostingRegressor(n_estimators=200, random_state=42, max_depth=3)
 
 
-def _kalman_smooth(predictions_sec: np.ndarray, step_sec: float = 5.0) -> np.ndarray:
+# ─── Kalman постобработка ─────────────────────────────────────────────────────
+
+_KALMAN_SIGMA_PROCESS = 30.0   # сек — v0002: неопределённость перехода
+_KALMAN_SIGMA_OBS = 120.0      # сек — v0002: доверие к модели
+
+
+def _kalman_smooth(
+    predictions_sec: np.ndarray,
+    step_sec: float = 5.0,
+    sigma_process: float = _KALMAN_SIGMA_PROCESS,
+    sigma_obs: float = _KALMAN_SIGMA_OBS,
+) -> np.ndarray:
     """1D Kalman-сглаживатель: τ_{t+1} = τ_t − step + w, z_t = τ_t + v."""
     n = len(predictions_sec)
     if n == 0:
         return predictions_sec.copy()
-    Q = _KALMAN_SIGMA_PROCESS ** 2
-    R = _KALMAN_SIGMA_OBS ** 2
+    Q = sigma_process ** 2
+    R = sigma_obs ** 2
     tau = predictions_sec[0]
     P = R
     out = np.empty(n)
@@ -214,7 +225,11 @@ def _kalman_smooth(predictions_sec: np.ndarray, step_sec: float = 5.0) -> np.nda
     return out
 
 
-def apply_kalman_to_loso(loso_result: dict) -> dict:
+def apply_kalman_to_loso(
+    loso_result: dict,
+    sigma_process: float = _KALMAN_SIGMA_PROCESS,
+    sigma_obs: float = _KALMAN_SIGMA_OBS,
+) -> dict:
     """Применяет Kalman-сглаживание к результатам LOSO."""
     y_pred_raw = loso_result["y_pred"].copy()
     y_pred_smooth = y_pred_raw.copy()
@@ -223,10 +238,10 @@ def apply_kalman_to_loso(loso_result: dict) -> dict:
 
     for s in sorted(np.unique(subj_all)):
         idx = np.where(subj_all == s)[0]
-        # Сортируем по elapsed внутри субъекта (порядок может быть нарушен в concat)
         order = np.argsort(elapsed_all[idx])
         sorted_idx = idx[order]
-        smoothed = _kalman_smooth(y_pred_raw[sorted_idx])
+        smoothed = _kalman_smooth(y_pred_raw[sorted_idx],
+                                  sigma_process=sigma_process, sigma_obs=sigma_obs)
         y_pred_smooth[sorted_idx] = smoothed
 
     new = loso_result.copy()
@@ -360,6 +375,47 @@ def prep_lt1_v0006a(df_full, sp):
     return df, feats, "target_time_to_lt1_sec"
 
 
+SAMPEN_30S = ["load_sampen_30s", "rest_sampen_30s"]
+SAMPEN_60S = ["load_sampen_60s", "rest_sampen_60s"]
+
+
+def prep_lt2_v0008(df_full, sp):
+    """v0008 LT2: лучшая конфигурация из v0008 — v0004-признаки + Ridge.
+    SampEn не дал прироста для LT2 с текущим датасетом."""
+    df = _base_lt2(df_full)
+    df = _z_emg(df)
+    df = _interactions(df)
+    feats = NIRS + HRV + INTER + Z_EMG
+    return df, feats, "target_time_to_lt2_center_sec"
+
+
+def prep_lt1_v0008(df_full, sp):
+    """v0008 LT1: SampEn 30s + z_EMG + HRV."""
+    df = _base_lt1(df_full)
+    df = _z_emg(df)
+    feats = Z_EMG + HRV + SAMPEN_30S
+    return df, feats, "target_time_to_lt1_sec"
+
+
+def prep_lt2_v0009(df_full, sp):
+    """v0009 LT2: те же признаки что v0008, Kalman σ_p=15с, σ_obs=150с."""
+    return prep_lt2_v0008(df_full, sp)
+
+
+def prep_lt1_v0009(df_full, sp):
+    """v0009 LT1: те же признаки что v0008, Kalman σ_p=15с, σ_obs=150с."""
+    return prep_lt1_v0008(df_full, sp)
+
+
+def _kalman_v0009(loso_result: dict) -> dict:
+    return apply_kalman_to_loso(loso_result, sigma_process=15.0, sigma_obs=150.0)
+
+
+def _kalman_v0010_lt1(loso_result: dict) -> dict:
+    """v0010 LT1: честный оптимум σ_p=15с, σ_obs=250с (Δ=-0.008 vs v0009)."""
+    return apply_kalman_to_loso(loso_result, sigma_process=15.0, sigma_obs=250.0)
+
+
 # ─── Реестр версий ────────────────────────────────────────────────────────────
 
 VERSIONS: dict[str, dict] = {
@@ -391,6 +447,27 @@ VERSIONS: dict[str, dict] = {
         "lt1": (prep_lt1_v0007, _huber, None),
         "label": "v0007\nRidge/Huber\n+CV",
     },
+    "v0008": {
+        # LT2: v0004-признаки + Ridge (SampEn не дал прироста)
+        # LT1: SampEn 30s + Huber
+        "lt2": (prep_lt2_v0008, _ridge, None),
+        "lt1": (prep_lt1_v0008, _huber, None),
+        "label": "v0008\nSampEn\n+Ridge/Huber",
+    },
+    "v0009": {
+        # Kalman σ_p=15с, σ_obs=150с поверх v0008-best
+        "lt2": (prep_lt2_v0009, _ridge, _kalman_v0009),
+        "lt1": (prep_lt1_v0009, _huber, _kalman_v0009),
+        "label": "v0009\n+Kalman\nσ_p=15,σ_o=150",
+    },
+    "v0010": {
+        # Честный оптимум расширенной сетки:
+        # LT2: те же параметры что v0009 (σ_p=15, σ_obs=150)
+        # LT1: σ_p=15, σ_obs=250 (Δ=-0.008 vs v0009, на уровне шума)
+        "lt2": (prep_lt2_v0009, _ridge, _kalman_v0009),
+        "lt1": (prep_lt1_v0009, _huber, _kalman_v0010_lt1),
+        "label": "v0010\nKalman\next.grid",
+    },
 }
 
 
@@ -419,6 +496,8 @@ def evaluate_version(
 
     if postprocess == "kalman":
         loso_res = apply_kalman_to_loso(loso_res)
+    elif callable(postprocess):
+        loso_res = postprocess(loso_res)
 
     metrics = compute_all_metrics(
         loso_res["y_true"], loso_res["y_pred"],

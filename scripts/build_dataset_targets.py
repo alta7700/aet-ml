@@ -35,6 +35,12 @@ def parse_args() -> argparse.Namespace:
         help="Путь к windows.parquet.",
     )
     parser.add_argument(
+        "--lt1-labels-file",
+        type=Path,
+        default=DEFAULT_DATASET_DIR / "lt1_labels.parquet",
+        help="Путь к lt1_labels.parquet. Если файл существует — LT1-таргеты добавляются автоматически.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=DEFAULT_DATASET_DIR / "targets.parquet",
@@ -52,9 +58,11 @@ def main() -> None:
     """Точка входа: строит targets.parquet."""
 
     args = parse_args()
+    lt1_path = args.lt1_labels_file if args.lt1_labels_file.exists() else None
     data_frame = build_targets_table(
         subjects_path=args.subjects_file,
         windows_path=args.windows_file,
+        lt1_labels_path=lt1_path,
     )
     save_parquet(data_frame, args.output, force=args.force)
 

@@ -427,6 +427,9 @@ def build_sensor_projection(
     timestamps_ms, x = load_channel(handle, f"{sensor_name}.x")
     _, y = load_channel(handle, f"{sensor_name}.y")
     _, z = load_channel(handle, f"{sensor_name}.z")
+    # Каналы X/Y/Z пишутся независимо и могут различаться на 1–2 сэмпла
+    n = min(len(timestamps_ms), len(x), len(y), len(z))
+    timestamps_ms, x, y, z = timestamps_ms[:n], x[:n], y[:n], z[:n]
     timestamps_sec = to_relative_seconds(timestamps_ms, anchor_ms)
     gyro_xyz = np.column_stack([x, y, z]).astype(float)
 
@@ -501,6 +504,8 @@ def detect_cycles(
     min_cadence_rpm: float,
     max_cadence_rpm: float,
     peak_prominence_std: float,
+    stages: tuple["StageInterval", ...] = (),
+    calibration_tail_sec: float = 60.0,
 ) -> tuple[CyclePhase, ...]:
     """Каузальная детекция циклов педалирования — только прошлое.
 
@@ -508,7 +513,10 @@ def detect_cycles(
     prominence. Это вводит задержку ~0.1–0.3 с (время отката), но полностью исключает
     заглядывание в будущее: в момент подтверждения используются только данные ≤ t.
 
-    Параметр prominence вычисляется из калибровочного окна (первая минута).
+    Prominence пересчитывается при каждом переходе на новую ступень мощности —
+    из последних calibration_tail_sec секунд предыдущей ступени. Это убирает
+    артефакты, когда фиксированный порог первой ступени не соответствует амплитуде
+    в середине теста.
 
     Алгоритм: автомат состояний searching_trough ↔ searching_peak.
       - В состоянии searching_trough: отслеживается текущий минимум. Впадина
@@ -517,10 +525,29 @@ def detect_cycles(
       - В состоянии searching_peak: зеркально для максимума.
     """
     calibration_segment = filtered_signal[calibration_mask]
-    prominence = max(
+    initial_prominence = max(
         float(np.std(calibration_segment)) * peak_prominence_std,
         1e-8,
     )
+
+    # Строим список переходов (время_перехода, новый_prominence).
+    # При входе в ступень i (i>0) берём последние calibration_tail_sec ступени (i-1).
+    # Работает только если stages переданы; иначе prominence фиксирован.
+    prominence_schedule: list[tuple[float, float]] = []
+    if stages:
+        for i in range(1, len(stages)):
+            prev = stages[i - 1]
+            tail_start = max(prev.start_sec, prev.end_sec - calibration_tail_sec)
+            mask = (timestamps_sec >= tail_start) & (timestamps_sec < prev.end_sec)
+            seg = filtered_signal[mask]
+            if len(seg) >= 20:
+                p = max(float(np.std(seg)) * peak_prominence_std, 1e-8)
+            else:
+                p = initial_prominence  # нет данных — оставляем предыдущее
+            prominence_schedule.append((stages[i].start_sec, p))
+
+    prominence = initial_prominence
+    schedule_ptr = 0  # следующий переход в prominence_schedule
     # Минимальный полупериод — нижняя граница допустимого времени trough→peak или peak→trough
     min_half_period_sec = 60.0 / max_cadence_rpm / 2.0
 
@@ -542,6 +569,11 @@ def detect_cycles(
     for i in range(1, n):
         val = sig_list[i]
         t = ts_list[i]
+
+        # Обновляем prominence при входе в новую ступень
+        while schedule_ptr < len(prominence_schedule) and t >= prominence_schedule[schedule_ptr][0]:
+            prominence = prominence_schedule[schedule_ptr][1]
+            schedule_ptr += 1
 
         if state == "searching_trough":
             if val < local_min_val:
@@ -869,6 +901,8 @@ def detect_phases(
         min_cadence_rpm=min_cadence_rpm,
         max_cadence_rpm=max_cadence_rpm,
         peak_prominence_std=peak_prominence_std,
+        stages=stages,
+        calibration_tail_sec=calibration_tail_sec,
     )
     refined_emg_channels = tuple(
         refine_channel_onsets(emg_channel=channel, cycles=cycles)

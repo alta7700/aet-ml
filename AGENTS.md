@@ -194,7 +194,7 @@ uv run python scripts/v{NNNN}_имя_файла.py --no-plots
 | `v0004_train_ridge_huber.py` | 2026-05-07 | Ridge(α=100) LT2, Huber(ε=1.35) LT1 | LT2=2.097, LT1=2.021 |
 | `v0005_train_shap_conformal_ridge_huber.py` | 2026-05-07 | SHAP + Conformal (Ridge/Huber) | conformal α=0.10: LT2 89.3%, LT1 89.7% |
 | `v0006_train_stage0_norm.py` | 2026-05-07 | Stage-0 нормировка HRV/NIRS | лучший вариант: LT2=3.649, LT1=3.065 (хуже ref) |
-| `v0007_train_variability_features.py` | 2026-05-07 | 6 стратегий вариабельности (Trend CV / SampEn, 3 масштаба) × зоопарк 6 моделей | LT2 best: SampEn 30s+GBM=2.043 (Δ=-0.055); LT1 best: SampEn 30s+Huber=1.998 (Δ=-0.023) |
-| `v0008_train_variability_combinations.py` | 2026-05-07 | Комбинации SampEn 30s/60s + timing_cv × зоопарк 6 моделей | LT2 best: SampEn 30s+GBM=2.043 (Δ=-0.054); LT1 best: SampEn 60s+timing_cv+Huber=1.959 (Δ=-0.062) |
-| `v0009_kalman_postprocess.py` | 2026-05-07 | Kalman-постобработка (σ_p=15с, σ_obs=150с) поверх v0008-best | LT2: 2.043→1.943 (Δ=-0.100); LT1: 1.959→1.901 (Δ=-0.058) — финал линейного этапа |
-| `v0010_kalman_extended_grid.py` | 2026-05-07 | Расширенная сетка Kalman: граница применимости | LT2 экстрем σ_p=5,σ_obs=400→1.708 (подгонка, не используется); LT1 честный best: 1.901→1.893 (шум) |
+| `v0007_train_variability_features.py` | 2026-05-07 | 6 стратегий вариабельности (Trend CV / SampEn, 3 масштаба) × зоопарк 6 моделей | LT2 (14 subj): Trend CV 60s+Ridge=2.023 (Δ≈0); LT1 (10 subj): SampEn 30s+Huber=2.110 (Δ=-0.008) |
+| `v0008_train_variability_combinations.py` | 2026-05-07 | Комбинации SampEn 30s/60s + timing_cv × зоопарк 6 моделей | LT2: v0004+Ridge=2.023 (лучшее, SampEn не помогает); LT1: SampEn 30s+Huber=2.110 (Δ=-0.008) |
+| `v0009_kalman_postprocess.py` | 2026-05-07 | Kalman-постобработка (σ_p=15с, σ_obs=150с) поверх v0004-best | LT2: 2.023→1.914 (Δ=-0.109); LT1: 2.118→2.042 (Δ=-0.076) — финал линейного этапа |
+| `v0010_kalman_extended_grid.py` | 2026-05-07 | Расширенная сетка Kalman: граница применимости | LT2 экстрем σ_p=5,σ_obs=400→1.662 (подгонка, не используется); LT1: v0009 честный (2.042) остаётся финалом |
