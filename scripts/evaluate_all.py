@@ -27,6 +27,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
@@ -40,7 +41,12 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from dataset_pipeline.common import DEFAULT_DATASET_DIR
-from scripts.eval_utils import compute_all_metrics, plot_acc_by_time, plot_tde, plot_summary_comparison
+from scripts.eval_utils import (
+    compute_all_metrics,
+    plot_acc_by_time, plot_tde, plot_summary_comparison,
+    plot_predictions_trajectories, plot_error_by_subject,
+    plot_mae_split, plot_split_mae_comparison,
+)
 
 ARTEFACTS_DIR = _ROOT / "artefacts"
 DATASET_PATH = DEFAULT_DATASET_DIR / "merged_features_ml.parquet"
@@ -257,7 +263,8 @@ def apply_kalman_to_loso(
 def loso_with_elapsed(df, features, target, model_factory) -> dict:
     subjects = sorted(df["subject_id"].unique())
     feat_cols = [f for f in features if f in df.columns]
-    preds, trues, subjs, elapseds = [], [], [], []
+    preds, trues, subjs, elapseds, wstarts = [], [], [], [], []
+    fold_models: dict = {}
 
     for test_s in subjects:
         train = df[df["subject_id"] != test_s]
@@ -272,18 +279,58 @@ def loso_with_elapsed(df, features, target, model_factory) -> dict:
         trues.append(test[target].values)
         subjs.append(np.full(len(test), test_s))
         elapseds.append(test["elapsed_sec"].values)
+        wstarts.append(test["window_start_sec"].values)
+        fold_models[test_s] = {"imputer": imp, "scaler": sc, "model": model, "features": feat_cols}
+
+    # Модель на всех данных — для применения к новым участникам
+    imp_full = SimpleImputer(strategy="median")
+    sc_full = StandardScaler()
+    model_full = model_factory()
+    X_full = sc_full.fit_transform(imp_full.fit_transform(df[feat_cols].values))
+    model_full.fit(X_full, df[target].values)
 
     y_pred = np.concatenate(preds)
     y_true = np.concatenate(trues)
     subjects_arr = np.concatenate(subjs)
     elapsed_arr = np.concatenate(elapseds)
+    wstart_arr = np.concatenate(wstarts)
     return {
         "y_true": y_true, "y_pred": y_pred,
         "subjects": subjects_arr, "elapsed": elapsed_arr,
+        "window_start_sec": wstart_arr,
         "mae_min": float(mean_absolute_error(y_true, y_pred)) / 60.0,
         "r2": float(r2_score(y_true, y_pred)),
         "rho": float(spearmanr(y_true, y_pred).statistic),
+        "fold_models": fold_models,
+        "full_model": {"imputer": imp_full, "scaler": sc_full, "model": model_full, "features": feat_cols},
     }
+
+
+def save_loso_artifacts(version: str, task: str, loso_res: dict, out_dir: Path) -> None:
+    """Сохраняет предсказания LOSO (parquet) и модели (joblib) в artefacts/vNNNN/."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df_pred = pd.DataFrame({
+        "subject_id": loso_res["subjects"],
+        "window_start_sec": loso_res["window_start_sec"],
+        "elapsed_sec": loso_res["elapsed"],
+        "y_true_sec": loso_res["y_true"],
+        "y_pred_raw_sec": loso_res.get("y_pred_raw", loso_res["y_pred"]),
+        "y_pred_sec": loso_res["y_pred"],
+    })
+    pred_path = out_dir / f"{task}_loso_predictions.parquet"
+    df_pred.to_parquet(pred_path, index=False)
+
+    models_dir = out_dir / "models"
+    models_dir.mkdir(exist_ok=True)
+    for subj, pipeline in loso_res.get("fold_models", {}).items():
+        joblib.dump(pipeline, models_dir / f"{task}_fold_{subj}.joblib")
+    if "full_model" in loso_res:
+        joblib.dump(loso_res["full_model"], models_dir / f"{task}_full.joblib")
+
+    n_models = len(loso_res.get("fold_models", {})) + (1 if "full_model" in loso_res else 0)
+    print(f"  → {pred_path.relative_to(out_dir.parents[1])}  "
+          f"+ models/ ({n_models} файлов)")
 
 
 # ─── Prepare functions ────────────────────────────────────────────────────────
@@ -494,6 +541,9 @@ def evaluate_version(
 
     loso_res = loso_with_elapsed(df, feat_cols, target, factory_fn)
 
+    # Сохраняем сырые предсказания до постобработки
+    loso_res["y_pred_raw"] = loso_res["y_pred"].copy()
+
     if postprocess == "kalman":
         loso_res = apply_kalman_to_loso(loso_res)
     elif callable(postprocess):
@@ -505,6 +555,9 @@ def evaluate_version(
     )
 
     print(f"    MAE={metrics['mae_min']:.3f}  R²={loso_res['r2']:.3f}  ρ={loso_res['rho']:.3f}")
+    print(f"    MAE_pre={metrics['mae_pre']:.3f} (n={metrics['n_pre']})  "
+          f"MAE_post={metrics['mae_post']:.3f} (n={metrics['n_post']})  "
+          f"MAE_near={metrics['mae_near']:.3f} (n={metrics['n_near']})")
     print(f"    Acc@30s={metrics['acc_global'][30.0]:.1%}  "
           f"Acc@1min={metrics['acc_global'][60.0]:.1%}  "
           f"Acc@2min={metrics['acc_global'][120.0]:.1%}  "
@@ -512,9 +565,13 @@ def evaluate_version(
     print(f"    |TDE| mean={metrics['tde_mean_abs_min']:.2f} мин  "
           f"median={metrics['tde_median_abs_min']:.2f} мин")
 
+    out_dir = ARTEFACTS_DIR / version
+    save_loso_artifacts(version, task, loso_res, out_dir)
+
     if not no_plots:
-        out_dir = ARTEFACTS_DIR / version
         label_short = cfg["label"].replace("\n", ", ")
+        df_pred = pd.read_parquet(out_dir / f"{task}_loso_predictions.parquet")
+
         plot_acc_by_time(
             metrics,
             title=f"Acc@δ по ходу теста — {version} {task.upper()} [{label_short}]",
@@ -524,6 +581,21 @@ def evaluate_version(
             metrics,
             title=f"Threshold Detection Error — {version} {task.upper()} [{label_short}]",
             out_path=out_dir / f"{task}_tde.png",
+        )
+        plot_predictions_trajectories(
+            df_pred,
+            title=f"Траектории предсказаний — {version} {task.upper()} [{label_short}]",
+            out_path=out_dir / f"{task}_predictions.png",
+        )
+        plot_error_by_subject(
+            df_pred,
+            title=f"Ошибки по участникам — {version} {task.upper()} [{label_short}]",
+            out_path=out_dir / f"{task}_residuals.png",
+        )
+        plot_mae_split(
+            metrics,
+            title=f"MAE по зонам — {version} {task.upper()} [{label_short}]",
+            out_path=out_dir / f"{task}_mae_split.png",
         )
 
     return metrics
@@ -573,12 +645,17 @@ def main() -> None:
         for task in tasks:
             vm = all_metrics[task]
             if len(vm) >= 2:
-                print(f"\nСравнительный график {task.upper()}...")
+                print(f"\nСравнительные графики {task.upper()}...")
                 renamed = {VERSIONS[v]["label"]: m for v, m in vm.items()}
                 plot_summary_comparison(
                     renamed,
                     out_path=ARTEFACTS_DIR / f"comparison_{task}.png",
                     title=f"Сравнение версий — {task.upper()}",
+                )
+                plot_split_mae_comparison(
+                    vm,
+                    out_path=ARTEFACTS_DIR / f"comparison_mae_split_{task}.png",
+                    title=f"MAE по зонам — {task.upper()}",
                 )
 
     print("\n" + "=" * 65)
@@ -586,12 +663,12 @@ def main() -> None:
     print("=" * 65)
     for task in tasks:
         print(f"\n{task.upper()}:")
-        print(f"  {'Версия':<10}  {'MAE':>7}  {'Acc@30s':>8}  "
+        print(f"  {'Версия':<10}  {'MAE':>7}  {'pre':>7}  {'post':>7}  {'near':>7}  "
               f"{'Acc@1min':>9}  {'Acc@2min':>9}  {'|TDE|':>7}")
-        print("  " + "─" * 60)
+        print("  " + "─" * 75)
         for v, m in all_metrics[task].items():
             print(f"  {v:<10}  {m['mae_min']:>7.3f}  "
-                  f"{m['acc_global'][30.0]:>8.1%}  "
+                  f"{m['mae_pre']:>7.3f}  {m['mae_post']:>7.3f}  {m['mae_near']:>7.3f}  "
                   f"{m['acc_global'][60.0]:>9.1%}  "
                   f"{m['acc_global'][120.0]:>9.1%}  "
                   f"{m['tde_mean_abs_min']:>7.2f}")

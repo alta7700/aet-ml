@@ -107,6 +107,37 @@ DELTAS_SEC = [30.0, 60.0, 120.0, 180.0]   # 30с, 1мин, 2мин, 3мин
 DELTA_LABELS = ["Acc@30s", "Acc@1min", "Acc@2min", "Acc@3min"]
 
 
+NEAR_THRESHOLD_SEC = 120.0  # ±2 мин от момента порога
+
+
+def compute_split_mae(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    near_sec: float = NEAR_THRESHOLD_SEC,
+) -> dict:
+    """MAE разбитый на три зоны по знаку и близости истинного τ.
+
+    mae_pre  — окна до порога  (τ_true > 0): точность прогноза будущего
+    mae_post — окна после порога (τ_true ≤ 0): скорость «признания» наступившего порога
+    mae_near — окна вблизи порога (|τ_true| ≤ near_sec): качество в зоне перехода
+    """
+    def _mae(mask: np.ndarray) -> float:
+        return float(np.mean(np.abs(y_true[mask] - y_pred[mask]))) / 60.0 if mask.sum() > 0 else float("nan")
+
+    mask_pre  = y_true > 0
+    mask_post = y_true <= 0
+    mask_near = np.abs(y_true) <= near_sec
+
+    return {
+        "mae_pre":  _mae(mask_pre),
+        "mae_post": _mae(mask_post),
+        "mae_near": _mae(mask_near),
+        "n_pre":    int(mask_pre.sum()),
+        "n_post":   int(mask_post.sum()),
+        "n_near":   int(mask_near.sum()),
+    }
+
+
 def compute_all_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
@@ -122,9 +153,16 @@ def compute_all_metrics(
     time_bins = acc_by_normalized_time(y_true, y_pred, elapsed, subjects, DELTAS_SEC, n_bins)
 
     mae_min = float(np.mean(np.abs(y_true - y_pred))) / 60.0
+    split = compute_split_mae(y_true, y_pred)
 
     return {
         "mae_min": mae_min,
+        "mae_pre": split["mae_pre"],
+        "mae_post": split["mae_post"],
+        "mae_near": split["mae_near"],
+        "n_pre": split["n_pre"],
+        "n_post": split["n_post"],
+        "n_near": split["n_near"],
         "acc_global": acc_global,
         "tde": tde,
         "tde_mean_abs_min": float(np.mean(np.abs(tde_vals))) / 60.0,
@@ -329,6 +367,197 @@ def plot_summary_comparison(
     ax2.set_title("MAE и |TDE| по версиям")
     ax2.legend(fontsize=9)
     ax2.grid(alpha=0.3, axis="y")
+
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  → {out_path.relative_to(out_path.parents[1])}")
+
+
+def plot_predictions_trajectories(
+    df_pred: pd.DataFrame,
+    title: str,
+    out_path: Path,
+) -> None:
+    """Траектории предсказаний по участникам.
+
+    Для каждого участника: y_true (пунктир) и y_pred (линия) в минутах
+    по оси x — время от начала теста в минутах.
+    Вертикальная линия — момент прохождения порога (y_true = 0).
+    """
+    subjects = sorted(df_pred["subject_id"].unique())
+    n = len(subjects)
+    ncols = min(4, n)
+    nrows = (n + ncols - 1) // ncols
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4.5, nrows * 3.2),
+                             squeeze=False)
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+
+    for idx, subj in enumerate(subjects):
+        ax = axes[idx // ncols][idx % ncols]
+        d = df_pred[df_pred["subject_id"] == subj].sort_values("elapsed_sec")
+
+        elapsed_min = d["elapsed_sec"].values / 60.0
+        y_true_min  = d["y_true_sec"].values / 60.0
+        y_pred_min  = d["y_pred_sec"].values / 60.0
+
+        ax.plot(elapsed_min, y_true_min, color="black", lw=1.5,
+                ls="--", label="Истина", zorder=3)
+        ax.plot(elapsed_min, y_pred_min, color="#1f77b4", lw=1.5,
+                label="Предсказание", zorder=2)
+
+        # Если есть сырые предсказания (до Kalman)
+        if "y_pred_raw_sec" in d.columns and not (d["y_pred_raw_sec"] == d["y_pred_sec"]).all():
+            ax.plot(elapsed_min, d["y_pred_raw_sec"].values / 60.0,
+                    color="#aec7e8", lw=1.0, ls=":", alpha=0.7, label="Raw")
+
+        # Момент порога
+        cross_idx = np.where(y_true_min <= 0)[0]
+        if len(cross_idx) > 0:
+            t_cross = elapsed_min[cross_idx[0]]
+            ax.axvline(t_cross, color="red", lw=1.2, ls=":", alpha=0.7)
+
+        ax.axhline(0, color="gray", lw=0.8, ls="-", alpha=0.4)
+        ax.set_title(subj, fontsize=9)
+        ax.set_xlabel("Время теста, мин", fontsize=7)
+        ax.set_ylabel("τ, мин", fontsize=7)
+        ax.tick_params(labelsize=7)
+        ax.grid(alpha=0.25)
+
+    # Легенда на первом субплоте
+    axes[0][0].legend(fontsize=7, loc="upper right")
+
+    # Скрыть пустые ячейки
+    for idx in range(n, nrows * ncols):
+        axes[idx // ncols][idx % ncols].set_visible(False)
+
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  → {out_path.relative_to(out_path.parents[2])}")
+
+
+def plot_error_by_subject(
+    df_pred: pd.DataFrame,
+    title: str,
+    out_path: Path,
+) -> None:
+    """Ошибки предсказания по участникам: boxplot + глобальное распределение."""
+    subjects = sorted(df_pred["subject_id"].unique())
+    errors_min = (df_pred["y_pred_sec"] - df_pred["y_true_sec"]) / 60.0
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+
+    # Boxplot по участникам
+    data_per_subj = [errors_min[df_pred["subject_id"] == s].values for s in subjects]
+    bp = ax1.boxplot(data_per_subj, labels=subjects, vert=False,
+                     patch_artist=True, notch=False,
+                     medianprops={"color": "red", "lw": 2})
+    for patch in bp["boxes"]:
+        patch.set_facecolor("#aec7e8")
+        patch.set_alpha(0.7)
+    ax1.axvline(0, color="black", lw=1.2)
+    medians = [np.median(d) for d in data_per_subj]
+    mean_all = float(errors_min.mean())
+    ax1.axvline(mean_all, color="navy", lw=1.5, ls="--",
+                label=f"Среднее {mean_all:+.2f} мин")
+    ax1.set_xlabel("Ошибка, мин  (+ = модель завышает τ)", fontsize=9)
+    ax1.set_title("Ошибки по участникам")
+    ax1.legend(fontsize=9)
+    ax1.grid(alpha=0.3, axis="x")
+
+    # Гистограмма глобального распределения ошибок
+    ax2.hist(errors_min.values, bins=40, color="#7f7f7f", alpha=0.75, edgecolor="white")
+    ax2.axvline(0, color="black", lw=1.5)
+    ax2.axvline(float(errors_min.mean()), color="red", lw=1.5, ls="--",
+                label=f"μ={errors_min.mean():+.2f} мин")
+    ax2.axvline(float(errors_min.median()), color="orange", lw=1.5, ls=":",
+                label=f"median={errors_min.median():+.2f} мин")
+    ax2.set_xlabel("Ошибка, мин", fontsize=9)
+    ax2.set_ylabel("Окна", fontsize=9)
+    ax2.set_title("Распределение ошибок (все окна)")
+    ax2.legend(fontsize=9)
+    ax2.grid(alpha=0.3)
+
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  → {out_path.relative_to(out_path.parents[2])}")
+
+
+def plot_mae_split(
+    metrics: dict,
+    title: str,
+    out_path: Path,
+) -> None:
+    """MAE разбитый по зонам: до порога, после порога, вблизи порога."""
+    labels = ["До порога\n(τ > 0)", "После порога\n(τ ≤ 0)", f"Вблизи порога\n(|τ| ≤ 2 мин)"]
+    values = [metrics["mae_pre"], metrics["mae_post"], metrics["mae_near"]]
+    counts = [metrics["n_pre"],  metrics["n_post"],  metrics["n_near"]]
+    colors = ["#2ca02c", "#d62728", "#ff7f0e"]
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    bars = ax.bar(labels, values, color=colors, alpha=0.8, edgecolor="white", width=0.5)
+
+    # Аннотации: MAE и количество окон
+    for bar, val, cnt in zip(bars, values, counts):
+        if not np.isnan(val):
+            ax.text(bar.get_x() + bar.get_width() / 2, val + 0.02,
+                    f"{val:.3f} мин\n(n={cnt})",
+                    ha="center", va="bottom", fontsize=10, fontweight="bold")
+
+    # Глобальный MAE для сравнения
+    ax.axhline(metrics["mae_min"], color="black", lw=1.5, ls="--",
+               label=f"MAE global = {metrics['mae_min']:.3f} мин")
+
+    ax.set_ylim(0, max(v for v in values if not np.isnan(v)) * 1.25)
+    ax.set_ylabel("MAE, мин", fontsize=11)
+    ax.set_title(title, fontsize=11, fontweight="bold")
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3, axis="y")
+
+    plt.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  → {out_path.relative_to(out_path.parents[2])}")
+
+
+def plot_split_mae_comparison(
+    all_metrics: dict[str, dict],
+    out_path: Path,
+    title: str = "MAE по зонам — сравнение версий",
+) -> None:
+    """Сравнительный график mae_pre / mae_post / mae_near по всем версиям."""
+    versions = list(all_metrics.keys())
+    x = np.arange(len(versions))
+    width = 0.25
+    colors = {"mae_pre": "#2ca02c", "mae_post": "#d62728", "mae_near": "#ff7f0e"}
+    labels_ru = {"mae_pre": "До порога (τ>0)", "mae_post": "После порога (τ≤0)",
+                 "mae_near": "Вблизи (|τ|≤2 мин)"}
+
+    fig, ax = plt.subplots(figsize=(max(10, len(versions) * 1.5), 5))
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+
+    for j, key in enumerate(["mae_pre", "mae_post", "mae_near"]):
+        vals = [all_metrics[v].get(key, float("nan")) for v in versions]
+        ax.bar(x + (j - 1) * width, vals, width, label=labels_ru[key],
+               color=colors[key], alpha=0.8)
+        for i, val in enumerate(vals):
+            if not np.isnan(val):
+                ax.text(i + (j - 1) * width, val + 0.02, f"{val:.2f}",
+                        ha="center", va="bottom", fontsize=7, rotation=90)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(versions, rotation=20, ha="right", fontsize=9)
+    ax.set_ylabel("MAE, мин")
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3, axis="y")
 
     plt.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
