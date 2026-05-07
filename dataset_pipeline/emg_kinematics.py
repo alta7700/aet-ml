@@ -5,7 +5,7 @@
 для каждого скользящего окна.
 
 Выходные файлы:
-- features_emg_kinematics.parquet  — 77 признаков на окно (64 ЭМГ + 8 prox-dist + 5 кинематика)
+- features_emg_kinematics.parquet  — 101 признак на окно (64 ЭМГ + 8 prox-dist + 7 кинематика + 4 EMG-CV + 18 variability)
 - session_params.parquet            — калибровочные параметры на участника
 """
 
@@ -227,24 +227,133 @@ def _collect_phase_samples(
     window_start_sec, window_end_sec : float
         Границы текущего каузального окна — жёсткий ограничитель выборки.
     """
-    segments: list[np.ndarray] = []
+    # Собираем диапазоны индексов через бинарный поиск — O(log N) вместо O(N) на маску
+    ranges: list[tuple[int, int]] = []
+    total = 0
     for cycle in cycles:
         if use_push:
             phase_start, phase_end = cycle.push_start_sec, cycle.push_end_sec
         else:
             phase_start, phase_end = cycle.pull_start_sec, cycle.pull_end_sec
-        # Пересекаем фазу цикла с границами окна
         t_start = max(phase_start, window_start_sec)
         t_end = min(phase_end, window_end_sec)
         if t_end <= t_start:
             continue
-        mask = (times >= t_start) & (times < t_end)
-        seg = values[mask]
-        if seg.size > 0:
-            segments.append(seg)
-    if segments:
-        return np.concatenate(segments, dtype=float)
-    return np.empty(0, dtype=float)
+        i0 = int(np.searchsorted(times, t_start, side="left"))
+        i1 = int(np.searchsorted(times, t_end, side="left"))
+        if i1 > i0:
+            ranges.append((i0, i1))
+            total += i1 - i0
+    if not ranges:
+        return np.empty(0, dtype=float)
+    # Одно выделение памяти вместо concatenate списка массивов
+    result = np.empty(total, dtype=float)
+    pos = 0
+    for i0, i1 in ranges:
+        n = i1 - i0
+        result[pos:pos + n] = values[i0:i1]
+        pos += n
+    return result
+
+
+def _collect_per_cycle_rms(
+    times: np.ndarray,
+    values: np.ndarray,
+    cycles: list[CyclePhase],
+    use_push: bool,
+    window_start_sec: float,
+    window_end_sec: float,
+    min_samples: int = 4,
+) -> np.ndarray:
+    """Возвращает массив RMS по каждому полному (или частичному) циклу в окне.
+
+    Используется для вычисления CV амплитуды от цикла к циклу.
+    Циклы с менее чем min_samples точек пропускаются.
+    """
+    rms_values: list[float] = []
+    for cycle in cycles:
+        phase_start = cycle.push_start_sec if use_push else cycle.pull_start_sec
+        phase_end = cycle.push_end_sec if use_push else cycle.pull_end_sec
+        t_start = max(phase_start, window_start_sec)
+        t_end = min(phase_end, window_end_sec)
+        if t_end <= t_start:
+            continue
+        i0 = int(np.searchsorted(times, t_start, side="left"))
+        i1 = int(np.searchsorted(times, t_end, side="left"))
+        n = i1 - i0
+        if n >= min_samples:
+            seg = values[i0:i1]
+            # np.dot избегает промежуточного массива seg**2
+            rms_values.append(float(np.sqrt(np.dot(seg, seg) / n)))
+    return np.array(rms_values, dtype=float)
+
+
+def _timing_trend_features(durations: np.ndarray, suffix: str) -> dict[str, float]:
+    """Признаки тренда CV: slope и ratio между первой и последней третями окна.
+
+    Captures нарастание ритмической нестабильности, которую единственный CV не видит.
+    Требует минимум 6 циклов (по 2 на треть).
+    """
+    nan = {"load" if "load" in suffix else suffix: float("nan")}  # заглушка не нужна
+    n = len(durations)
+    if n < 6:
+        return {
+            f"trend_cv_slope_{suffix}": float("nan"),
+            f"trend_cv_ratio_{suffix}": float("nan"),
+        }
+    third = n // 3
+    cv_early = _cv(durations[:third])
+    cv_late = _cv(durations[n - third:])
+    if not (math.isfinite(cv_early) and math.isfinite(cv_late)):
+        return {
+            f"trend_cv_slope_{suffix}": float("nan"),
+            f"trend_cv_ratio_{suffix}": float("nan"),
+        }
+    slope = cv_late - cv_early
+    ratio = cv_late / cv_early if abs(cv_early) > 1e-9 else float("nan")
+    return {
+        f"trend_cv_slope_{suffix}": slope,
+        f"trend_cv_ratio_{suffix}": ratio,
+    }
+
+
+def _sample_entropy(x: np.ndarray, m: int = 2, r_factor: float = 0.2) -> float:
+    """SampleEntropy: мера непредсказуемости ряда длительностей циклов.
+
+    Параметры: m=2 (длина шаблона), r=0.2*std (допуск совпадения).
+    Рекомендуется N≥50 для стабильной оценки (60с-окно ≈ 75 циклов, 120с ≈ 150).
+    """
+    n = len(x)
+    if n < m + 2:
+        return float("nan")
+    r = r_factor * float(np.std(x, ddof=1))
+    if r < 1e-12:
+        return float("nan")
+
+    def _count_matches(length: int) -> int:
+        # Матрица шаблонов (n-length, length) — numpy-векторизация вместо двойного цикла
+        templates = np.array([x[i:i + length] for i in range(n - length)])
+        diff = np.abs(templates[:, None, :] - templates[None, :, :])
+        max_diff = diff.max(axis=2)
+        matches = max_diff < r
+        np.fill_diagonal(matches, False)
+        return int(matches.sum())
+
+    b = _count_matches(m)
+    a = _count_matches(m + 1)
+    if b == 0 or a == 0:
+        return float("nan")
+    return float(-np.log(a / b))
+
+
+def _cv(values: np.ndarray) -> float:
+    """Коэффициент вариации (std/mean). NaN если менее 2 значений или mean≈0."""
+    if values.size < 2:
+        return float("nan")
+    mean = float(np.mean(values))
+    if not math.isfinite(mean) or abs(mean) < 1e-12:
+        return float("nan")
+    return float(np.std(values, ddof=1) / mean)
 
 
 def _compute_time_domain_features(x: np.ndarray) -> dict[str, float]:
@@ -430,7 +539,7 @@ def extract_emg_kinematics_features(
     window_start_sec: float,
     window_end_sec: float,
 ) -> dict[str, object]:
-    """Извлекает 77 признаков + QC-поля для одного скользящего окна.
+    """Извлекает 83 признака + QC-поля для одного скользящего окна.
 
     Параметры
     ----------
@@ -441,7 +550,7 @@ def extract_emg_kinematics_features(
 
     Возвращает
     ----------
-    dict с 77 признаками и 5 QC-полями (итого 82 поля).
+    dict с 83 признаками и 5 QC-полями (итого 88 полей).
     """
     window_duration_sec = window_end_sec - window_start_sec
     fs = session.emg_sample_rate_hz
@@ -521,8 +630,43 @@ def extract_emg_kinematics_features(
     # Производные prox-dist признаки (8)
     features.update(_compute_prox_dist_derived(features))
 
-    # Кинематические признаки (5)
+    # Кинематические признаки (7: базовые + CV длительностей)
     features.update(_compute_kinematics_features(cycles_in_window))
+
+    # CV амплитуды ЭМГ цикл-к-циклу (4): нестабильность паттерна как маркер усталости
+    for ch_times, ch_vals, prefix, use_push in [
+        (session.emg_vl_dist_times, session.emg_vl_dist_values, "vl_dist_load", True),
+        (session.emg_vl_dist_times, session.emg_vl_dist_values, "vl_dist_rest", False),
+        (session.emg_vl_prox_times, session.emg_vl_prox_values, "vl_prox_load", True),
+        (session.emg_vl_prox_times, session.emg_vl_prox_values, "vl_prox_rest", False),
+    ]:
+        per_cycle_rms = _collect_per_cycle_rms(
+            ch_times, ch_vals, cycles_in_window, use_push,
+            window_start_sec, window_end_sec,
+        )
+        features[f"{prefix}_rms_cv"] = _cv(per_cycle_rms)
+
+    # Trend CV и SampEn на 3 масштабах (30s / 60s / 120s) для timing-признаков
+    # Каждый масштаб — отдельная группа признаков, в модель подаётся только один
+    for lookback_sec, suffix in [(30.0, "30s"), (60.0, "60s"), (120.0, "120s")]:
+        lb_start = window_end_sec - lookback_sec
+        cycles_lb: list[CyclePhase] = [
+            c for c in session.cycles
+            if c.push_start_sec >= lb_start and c.pull_end_sec <= window_end_sec
+        ]
+        load_dur = np.array([c.push_duration_sec * 1000.0 for c in cycles_lb], dtype=float)
+        rest_dur = np.array([c.pull_duration_sec * 1000.0 for c in cycles_lb], dtype=float)
+
+        load_trend = _timing_trend_features(load_dur, suffix)
+        rest_trend = _timing_trend_features(rest_dur, suffix)
+        features.update({
+            f"load_trend_cv_slope_{suffix}": load_trend[f"trend_cv_slope_{suffix}"],
+            f"load_trend_cv_ratio_{suffix}": load_trend[f"trend_cv_ratio_{suffix}"],
+            f"rest_trend_cv_slope_{suffix}": rest_trend[f"trend_cv_slope_{suffix}"],
+            f"rest_trend_cv_ratio_{suffix}": rest_trend[f"trend_cv_ratio_{suffix}"],
+            f"load_sampen_{suffix}": _sample_entropy(load_dur),
+            f"rest_sampen_{suffix}": _sample_entropy(rest_dur),
+        })
 
     # QC поля
     features["cycles_count"] = cycles_count
@@ -575,7 +719,7 @@ def _compute_prox_dist_derived(features: dict[str, object]) -> dict[str, float]:
 
 
 def _compute_kinematics_features(cycles: list[CyclePhase]) -> dict[str, float]:
-    """Вычисляет 5 кинематических признаков по набору циклов в окне.
+    """Вычисляет 7 кинематических признаков по набору циклов в окне.
 
     Параметры
     ----------
@@ -587,11 +731,7 @@ def _compute_kinematics_features(cycles: list[CyclePhase]) -> dict[str, float]:
     rest_durations_ms = np.array([c.pull_duration_sec * 1000.0 for c in cycles], dtype=float)
 
     cadence_mean_rpm = float(np.mean(cadence_values))
-    cadence_cv = (
-        float(np.std(cadence_values, ddof=1) / np.mean(cadence_values))
-        if len(cadence_values) > 1 and np.mean(cadence_values) > 0
-        else float("nan")
-    )
+    cadence_cv = _cv(cadence_values)
     load_duration_ms = float(np.mean(load_durations_ms))
     rest_duration_ms = float(np.mean(rest_durations_ms))
     load_rest_ratio = (
@@ -599,6 +739,9 @@ def _compute_kinematics_features(cycles: list[CyclePhase]) -> dict[str, float]:
         if np.mean(rest_durations_ms) > 0
         else float("nan")
     )
+    # CV длительностей: растёт при ритмической нестабильности (усталость, рекрутирование)
+    load_duration_cv = _cv(load_durations_ms)
+    rest_duration_cv = _cv(rest_durations_ms)
 
     return {
         "cadence_mean_rpm": cadence_mean_rpm,
@@ -606,11 +749,23 @@ def _compute_kinematics_features(cycles: list[CyclePhase]) -> dict[str, float]:
         "load_duration_ms": load_duration_ms,
         "rest_duration_ms": rest_duration_ms,
         "load_rest_ratio": load_rest_ratio,
+        "load_duration_cv": load_duration_cv,
+        "rest_duration_cv": rest_duration_cv,
     }
 
 
 def _all_feature_names() -> list[str]:
-    """Возвращает список всех 77 имён признаков (без QC-полей)."""
+    """Возвращает список всех 83 имён признаков (без QC-полей).
+
+    Состав:
+    - 64 stream-признака  (16 × 4 потока)
+    - 8 prox-dist производных
+    - 7 кинематических (включая CV длительностей)
+    - 4 EMG CV амплитуды цикл-к-циклу
+    - 18 timing Trend CV + SampEn на 3 масштабах (30s / 60s / 120s):
+        load/rest × (trend_cv_slope, trend_cv_ratio, sampen) × 3 = 18
+    Итого: 101
+    """
     feature_suffixes = [
         "rms", "mav", "wl", "zcr",
         "mdf", "mnf", "p_low", "p_mid", "p_high", "ratio_mid_high",
@@ -627,8 +782,22 @@ def _all_feature_names() -> list[str]:
     kinematic = [
         "cadence_mean_rpm", "cadence_cv",
         "load_duration_ms", "rest_duration_ms", "load_rest_ratio",
+        "load_duration_cv", "rest_duration_cv",
     ]
-    return stream_features + derived + kinematic
+    emg_cv = [
+        "vl_dist_load_rms_cv", "vl_dist_rest_rms_cv",
+        "vl_prox_load_rms_cv", "vl_prox_rest_rms_cv",
+    ]
+    variability = [
+        feat
+        for scale in ("30s", "60s", "120s")
+        for feat in (
+            f"load_trend_cv_slope_{scale}", f"load_trend_cv_ratio_{scale}",
+            f"rest_trend_cv_slope_{scale}", f"rest_trend_cv_ratio_{scale}",
+            f"load_sampen_{scale}", f"rest_sampen_{scale}",
+        )
+    ]
+    return stream_features + derived + kinematic + emg_cv + variability
 
 
 def _build_session_params_row(session: PhasedSession) -> dict[str, object]:

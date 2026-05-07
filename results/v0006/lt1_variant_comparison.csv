@@ -1,0 +1,64 @@
+config,subject_id,mae_min
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S002,2.457140351394466
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S003,3.427604708326251
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S004,1.1177506144047349
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S006,1.846012219108875
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S009,2.0689473116148194
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S010,1.9765006717491849
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S011,1.5222248922772428
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S013,1.9307702818695485
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S014,1.0323695167586986
+A: rr_pct+delta вместо rr_ms,S002,3.962346511682124
+A: rr_pct+delta вместо rr_ms,S003,3.431058563466219
+A: rr_pct+delta вместо rr_ms,S004,2.1348194642748877
+A: rr_pct+delta вместо rr_ms,S006,3.0553503141610587
+A: rr_pct+delta вместо rr_ms,S009,4.122907223180019
+A: rr_pct+delta вместо rr_ms,S010,2.7973500396361413
+A: rr_pct+delta вместо rr_ms,S011,2.5313928618237393
+A: rr_pct+delta вместо rr_ms,S013,1.7150009932928332
+A: rr_pct+delta вместо rr_ms,S014,3.367590243103377
+B: все HRV→pct + smo2_delta,S002,1.984350936400522
+B: все HRV→pct + smo2_delta,S003,5.343470626707548
+B: все HRV→pct + smo2_delta,S004,4.914522919319291
+B: все HRV→pct + smo2_delta,S006,4.932893670637232
+B: все HRV→pct + smo2_delta,S009,4.134131153131213
+B: все HRV→pct + smo2_delta,S010,2.3177255275466306
+B: все HRV→pct + smo2_delta,S011,1.8592243791019276
+B: все HRV→pct + smo2_delta,S013,8.662235296338089
+B: все HRV→pct + smo2_delta,S014,2.319164947046929
+B2: все HRV→pct+delta,S002,4.094462263436075
+B2: все HRV→pct+delta,S003,2.8453540648574345
+B2: все HRV→pct+delta,S004,3.181332782867883
+B2: все HRV→pct+delta,S006,6.24007105612927
+B2: все HRV→pct+delta,S009,6.393013989366712
+B2: все HRV→pct+delta,S010,4.001109802260109
+B2: все HRV→pct+delta,S011,3.5351154855959397
+B2: все HRV→pct+delta,S013,2.8154569399563076
+B2: все HRV→pct+delta,S014,4.080850390484506
+C: B + slope,S002,2.000960555758455
+C: B + slope,S003,6.274738054931356
+C: B + slope,S004,4.619971860716133
+C: B + slope,S006,4.79420790787726
+C: B + slope,S009,4.123968798744033
+C: B + slope,S010,2.6196741276933957
+C: B + slope,S011,1.6013979827996918
+C: B + slope,S013,8.745987073096591
+C: B + slope,S014,3.1265789397962886
+D: A + slope,S002,4.298394173560594
+D: A + slope,S003,3.452843465903425
+D: A + slope,S004,2.0473001024767705
+D: A + slope,S006,2.8930759790692773
+D: A + slope,S009,4.117804058782962
+D: A + slope,S010,2.839331067794023
+D: A + slope,S011,2.7640432823789736
+D: A + slope,S013,1.6938062281375867
+D: A + slope,S014,3.335228404756248
+E: pct+scale-free+z_EMG+slope,S002,3.4470349089374577
+E: pct+scale-free+z_EMG+slope,S003,3.2742976088138938
+E: pct+scale-free+z_EMG+slope,S004,3.1207032903493244
+E: pct+scale-free+z_EMG+slope,S006,3.269335555580956
+E: pct+scale-free+z_EMG+slope,S009,9.197043671097415
+E: pct+scale-free+z_EMG+slope,S010,4.793243129364655
+E: pct+scale-free+z_EMG+slope,S011,1.3895044857598715
+E: pct+scale-free+z_EMG+slope,S013,9.183858066989535
+E: pct+scale-free+z_EMG+slope,S014,2.5629478824065703

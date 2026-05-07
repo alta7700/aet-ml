@@ -15,7 +15,7 @@ from matplotlib.widgets import Slider
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import butter, filtfilt, find_peaks, iirnotch
+from scipy.signal import butter, filtfilt, iirnotch
 
 
 DATA_DIR = Path("/Users/tascan/Desktop/диссер/data")
@@ -40,6 +40,8 @@ EMG_ENVELOPE_LOW_PASS_HZ = 8.0
 EMG_REST_TRIM_FRACTION = 0.2
 EMG_THRESHOLD_K = 4.0
 EMG_MIN_ONSET_HOLD_SEC = 0.04
+EMG_SLOPE_SMOOTH_SEC = 0.020   # окно сглаживания огибающей перед дифференцированием
+EMG_SLOPE_K = 2.0              # порог производной: median_slope + k*mad_slope в окне отдыха
 
 
 @dataclass(frozen=True)
@@ -500,26 +502,80 @@ def detect_cycles(
     max_cadence_rpm: float,
     peak_prominence_std: float,
 ) -> tuple[CyclePhase, ...]:
-    """Строит интервалы фазы нагрузки и отдыха по минимумам и пикам."""
+    """Каузальная детекция циклов педалирования — только прошлое.
+
+    Пик/впадина подтверждается, когда сигнал откатился от экстремума на величину
+    prominence. Это вводит задержку ~0.1–0.3 с (время отката), но полностью исключает
+    заглядывание в будущее: в момент подтверждения используются только данные ≤ t.
+
+    Параметр prominence вычисляется из калибровочного окна (первая минута).
+
+    Алгоритм: автомат состояний searching_trough ↔ searching_peak.
+      - В состоянии searching_trough: отслеживается текущий минимум. Впадина
+        подтверждается, когда сигнал вырос на prominence от этого минимума И прошло
+        достаточно времени (min_half_period) с предыдущего экстремума.
+      - В состоянии searching_peak: зеркально для максимума.
+    """
     calibration_segment = filtered_signal[calibration_mask]
     prominence = max(
         float(np.std(calibration_segment)) * peak_prominence_std,
         1e-8,
     )
-    min_distance_samples = max(1, int(sample_rate_hz * 60.0 / max_cadence_rpm))
-    peaks, _ = find_peaks(
-        filtered_signal,
-        distance=min_distance_samples,
-        prominence=prominence,
-    )
-    troughs, _ = find_peaks(
-        -filtered_signal,
-        distance=min_distance_samples,
-        prominence=prominence,
-    )
-    if len(peaks) < 3 or len(troughs) < 3:
+    # Минимальный полупериод — нижняя граница допустимого времени trough→peak или peak→trough
+    min_half_period_sec = 60.0 / max_cadence_rpm / 2.0
+
+    n = len(filtered_signal)
+    trough_indices: list[int] = []
+    peak_indices: list[int] = []
+
+    # Конвертация в Python list: скалярный доступ в 3–5× быстрее чем numpy[i] в цикле
+    sig_list = filtered_signal.tolist()
+    ts_list = timestamps_sec.tolist()
+
+    state = "searching_trough"
+    local_min_val = sig_list[0]
+    local_min_idx = 0
+    local_max_val = sig_list[0]
+    local_max_idx = 0
+    last_event_time = ts_list[0]
+
+    for i in range(1, n):
+        val = sig_list[i]
+        t = ts_list[i]
+
+        if state == "searching_trough":
+            if val < local_min_val:
+                local_min_val = val
+                local_min_idx = i
+            # Впадина подтверждается: сигнал поднялся на prominence от минимума
+            # И прошло ≥ min_half_period с последнего экстремума
+            if (val - local_min_val >= prominence
+                    and t - last_event_time >= min_half_period_sec):
+                trough_indices.append(local_min_idx)
+                last_event_time = ts_list[local_min_idx]
+                state = "searching_peak"
+                local_max_val = val
+                local_max_idx = i
+
+        else:  # searching_peak
+            if val > local_max_val:
+                local_max_val = val
+                local_max_idx = i
+            # Пик подтверждается: сигнал упал на prominence от максимума
+            # И прошло ≥ min_half_period с последнего экстремума
+            if (local_max_val - val >= prominence
+                    and t - last_event_time >= min_half_period_sec):
+                peak_indices.append(local_max_idx)
+                last_event_time = ts_list[local_max_idx]
+                state = "searching_trough"
+                local_min_val = val
+                local_min_idx = i
+
+    if len(peak_indices) < 3 or len(trough_indices) < 3:
         raise ValueError("Не удалось найти достаточно экстремумов педалирования.")
 
+    troughs = np.array(trough_indices, dtype=int)
+    peaks = np.array(peak_indices, dtype=int)
     min_cycle_sec = 60.0 / max_cadence_rpm
     max_cycle_sec = 60.0 / min_cadence_rpm
     cycles: list[CyclePhase] = []
@@ -595,27 +651,55 @@ def build_rest_reference_window(previous_cycle: CyclePhase) -> tuple[float, floa
     return float(trimmed_start_sec), float(trimmed_end_sec)
 
 
+def _compute_envelope_slope(envelope_values: np.ndarray, sample_rate_hz: float) -> np.ndarray:
+    """Вычисляет производную огибающей после лёгкого сглаживания.
+
+    Огибающая уже LP-фильтрована на 8 Гц, поэтому 20-мс сглаживание добавляет
+    минимальный дополнительный шум при значительном подавлении числового шума градиента.
+    Единицы: [ед/с] — изменение нормированной огибающей в секунду.
+    """
+    smooth_n = max(3, int(round(sample_rate_hz * EMG_SLOPE_SMOOTH_SEC)))
+    kernel = np.ones(smooth_n) / float(smooth_n)
+    smoothed = np.convolve(envelope_values, kernel, mode="same")
+    return np.gradient(smoothed, 1.0 / sample_rate_hz)
+
+
 def find_refined_onset_in_cycle(
     timestamps_sec: np.ndarray,
     envelope_values: np.ndarray,
+    slope_values: np.ndarray,
     cycle: CyclePhase,
     threshold_value: float,
+    slope_threshold_value: float,
     sample_rate_hz: float,
 ) -> float:
-    """Ищет onset как первое устойчивое превышение порога в фазе нагрузки."""
-    activation_mask = (timestamps_sec >= cycle.push_start_sec) & (timestamps_sec <= cycle.push_end_sec)
-    activation_indices = np.flatnonzero(activation_mask)
-    if activation_indices.size == 0:
+    """Ищет onset как первое устойчивое превышение порога с одновременно положительной производной.
+
+    Два условия срабатывают одновременно:
+      1. envelope >= threshold_value  — уровневый критерий (медиана + 4·MAD из отдыха)
+      2. slope >= slope_threshold_value — производная превышает фоновый шум slope в отдыхе
+
+    Условие 2 отфильтровывает хвост убывающей активации предыдущего цикла: хвост даёт
+    envelope выше порога, но slope ≤ 0 (сигнал ещё спадает). Истинный onset — это
+    одновременный рост уровня и положительная производная.
+    """
+    # Бинарный поиск вместо boolean mask — O(log N) на операцию
+    i0 = int(np.searchsorted(timestamps_sec, cycle.push_start_sec, side="left"))
+    i1 = int(np.searchsorted(timestamps_sec, cycle.push_end_sec, side="right"))
+    if i1 <= i0:
         return cycle.push_start_sec
 
-    activation_envelope = envelope_values[activation_indices]
+    activation_envelope = envelope_values[i0:i1]
+    activation_slope = slope_values[i0:i1]
     hold_samples = max(1, int(round(sample_rate_hz * EMG_MIN_ONSET_HOLD_SEC)))
-    above_threshold = activation_envelope >= threshold_value
+
+    # Оба условия должны выполняться одновременно
+    above_threshold = (activation_envelope >= threshold_value) & (activation_slope >= slope_threshold_value)
 
     if hold_samples == 1:
         crossings = np.flatnonzero(above_threshold)
         if crossings.size > 0:
-            return float(timestamps_sec[activation_indices[int(crossings[0])]])
+            return float(timestamps_sec[i0 + int(crossings[0])])
         return cycle.push_start_sec
 
     run_length = 0
@@ -624,7 +708,7 @@ def find_refined_onset_in_cycle(
             run_length += 1
             if run_length >= hold_samples:
                 onset_index = local_index - hold_samples + 1
-                return float(timestamps_sec[activation_indices[onset_index]])
+                return float(timestamps_sec[i0 + onset_index])
         else:
             run_length = 0
     return cycle.push_start_sec
@@ -634,12 +718,25 @@ def refine_channel_onsets(
     emg_channel: SignalChannel,
     cycles: tuple[CyclePhase, ...],
 ) -> SignalChannel:
-    """Уточняет onset для каждого цикла по локальному порогу от предыдущего отдыха."""
+    """Уточняет onset для каждого цикла по локальному порогу от предыдущего отдыха.
+
+    Для каждого цикла вычисляет два порога из окна предыдущего отдыха:
+      - threshold_value: median + 4*MAD по уровню огибающей (уровневый критерий)
+      - slope_threshold_value: median_slope + 2*MAD_slope по производной (критерий нарастания)
+
+    Onset определяется как первый момент, где ОБА условия выполняются устойчиво (40 мс).
+    Это устраняет ложные срабатывания на убывающем хвосте предыдущей активации:
+    хвост огибающей может быть выше уровневого порога, но slope там ≤ 0.
+    """
     if emg_channel.envelope_values is None:
         raise ValueError(f"У канала '{emg_channel.channel_name}' нет ЭМГ-огибающей.")
 
     timestamps_sec = emg_channel.timestamps_sec
     envelope_values = emg_channel.envelope_values.astype(float)
+
+    # Производная вычисляется один раз для всего сигнала
+    slope_values = _compute_envelope_slope(envelope_values, emg_channel.sample_rate_hz)
+
     refined_onsets = np.full(len(cycles), np.nan, dtype=float)
     refined_thresholds = np.full(len(cycles), np.nan, dtype=float)
 
@@ -649,29 +746,42 @@ def refine_channel_onsets(
             continue
 
         rest_start_sec, rest_end_sec = build_rest_reference_window(cycles[cycle_index - 1])
-        rest_mask = (timestamps_sec >= rest_start_sec) & (timestamps_sec <= rest_end_sec)
-        rest_values = envelope_values[rest_mask]
+        # Бинарный поиск вместо boolean mask — O(log N) вместо O(N)
+        ir0 = int(np.searchsorted(timestamps_sec, rest_start_sec, side="left"))
+        ir1 = int(np.searchsorted(timestamps_sec, rest_end_sec, side="right"))
+        rest_values = envelope_values[ir0:ir1]
         if rest_values.size < 5:
-            rest_mask = (
-                (timestamps_sec >= cycles[cycle_index - 1].pull_start_sec)
-                & (timestamps_sec <= cycles[cycle_index - 1].pull_end_sec)
-            )
-            rest_values = envelope_values[rest_mask]
+            prev = cycles[cycle_index - 1]
+            ir0 = int(np.searchsorted(timestamps_sec, prev.pull_start_sec, side="left"))
+            ir1 = int(np.searchsorted(timestamps_sec, prev.pull_end_sec, side="right"))
+            rest_values = envelope_values[ir0:ir1]
 
         if rest_values.size < 5:
             refined_onsets[cycle_index] = cycle.push_start_sec
             continue
 
+        # Уровневый порог (без изменений)
         rest_median = float(np.median(rest_values))
         rest_mad = robust_mad(rest_values)
         if rest_mad <= 1e-12:
             rest_mad = float(np.std(rest_values))
         threshold_value = rest_median + EMG_THRESHOLD_K * max(rest_mad, 1e-12)
+
+        # Порог производной из того же окна отдыха (те же индексы ir0:ir1)
+        rest_slopes = slope_values[ir0:ir1]
+        slope_median = float(np.median(rest_slopes))
+        slope_mad = robust_mad(rest_slopes)
+        if slope_mad <= 1e-12:
+            slope_mad = float(np.std(rest_slopes))
+        slope_threshold_value = slope_median + EMG_SLOPE_K * max(slope_mad, 1e-12)
+
         onset_sec = find_refined_onset_in_cycle(
             timestamps_sec=timestamps_sec,
             envelope_values=envelope_values,
+            slope_values=slope_values,
             cycle=cycle,
             threshold_value=threshold_value,
+            slope_threshold_value=slope_threshold_value,
             sample_rate_hz=emg_channel.sample_rate_hz,
         )
         refined_onsets[cycle_index] = onset_sec
