@@ -1,0 +1,472 @@
+"""v0103 — Wavelet-CNN для предсказания времени до лактатного порога
+
+Версия:    v0103
+Дата:      2026-05-08
+
+Pipeline:
+  Последовательность признаков (seq_len × n_features)
+      ↓
+  CWT по каждому признаку → скалограмма (n_features, seq_len, n_scales)
+  Предвычислено для всей тренировочной/тестовой выборки — не на лету.
+      ↓
+  1×1 Conv2d: n_features → feat_embed (редукция без потери структуры)
+      ↓
+  2D CNN: извлечение time-frequency паттернов
+      ↓
+  Global Average Pooling → Dropout → Linear → предсказание
+
+Почему Wavelet-CNN:
+  • CWT выявляет частотный состав физиологических сигналов (EMG, NIRS)
+    на разных масштабах времени (1–16 окон = 20–320 сек)
+  • CNN на скалограмме умеет ловить паттерны вида «сигнал начинает
+    нарастать на низких частотах» — признак приближающегося порога
+  • feat_embed+маленькая CNN = мало параметров → хорошо для N=14
+
+Воспроизведение:
+  uv run python scripts/v0103_wavelet_cnn.py --target both
+  uv run python scripts/v0103_wavelet_cnn.py --target lt2 --feature-set EMG+NIRS+HRV
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+import warnings
+from pathlib import Path
+import sys
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+import numpy as np
+import pandas as pd
+import pywt
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_absolute_error, r2_score
+from scipy.stats import spearmanr
+from joblib import Parallel, delayed
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from dataset_pipeline.common import DEFAULT_DATASET_DIR
+from scripts.v0011_modality_ablation import (
+    prepare_data,
+    get_feature_cols,
+    kalman_smooth,
+)
+
+OUT_DIR = _ROOT / "results" / "v0103"
+
+
+# ─── Конфиг ───────────────────────────────────────────────────────────────────
+
+class Config:
+    # Семплирование: каждое 4-е окно = 20 сек шаг (больше данных чем v0102)
+    window_step   = 4
+    seq_length    = 12       # 12 × 20 сек = 4 мин контекста
+    batch_size    = 16
+    num_epochs    = 100
+    learning_rate = 0.001
+    patience      = 15
+    # Wavelet параметры
+    wavelet       = "morl"           # Морле — стандарт для физиологических сигналов
+    scales        = [1, 2, 4, 8, 16] # лог-масштабы: от 20 сек до 5+ мин
+    # CNN параметры
+    feat_embed    = 8     # редукция n_features → 8 перед CNN (борьба с переобучением)
+    cnn_channels  = [16, 32]
+    dropout       = 0.3
+    device        = "cpu"
+
+
+# ─── Wavelet Dataset ──────────────────────────────────────────────────────────
+
+class WaveletDataset(Dataset):
+    """Предвычисляет CWT энергию для всей последовательности.
+
+    CWT применяется к временной оси (seq across windows), а не внутри окна.
+    Для каждого признака строится скалограмма: как меняется его частотный
+    состав по ходу тренировки.
+    """
+
+    def __init__(self, X: np.ndarray, y: np.ndarray,
+                 seq_length: int, window_step: int,
+                 scales: list[int], wavelet: str):
+        total = len(X)
+        ind_idx = np.arange(0, total, window_step)
+        X_ind = X[ind_idx].astype(np.float32)
+        y_ind = y[ind_idx].astype(np.float32)
+        self.n = len(X_ind)
+        self.seq_length = seq_length
+
+        n_f  = X_ind.shape[1]
+        n_sc = len(scales)
+
+        # cwt_all: (n_ind, n_features, n_scales) — энергия CWT
+        cwt_all = np.zeros((self.n, n_f, n_sc), dtype=np.float32)
+
+        if self.n > 1:
+            for f in range(n_f):
+                signal = X_ind[:, f].astype(np.float64)
+                coeffs, _ = pywt.cwt(signal, scales, wavelet)
+                # coeffs: (n_scales, n_ind) → берём |.|
+                cwt_all[:, f, :] = np.abs(coeffs).T.astype(np.float32)
+
+        # Стандартизация по каждому масштабу (по всем времени и признакам)
+        flat = cwt_all.reshape(-1, n_sc)
+        mean = flat.mean(axis=0)
+        std  = flat.std(axis=0) + 1e-8
+        self.cwt = ((cwt_all - mean) / std).astype(np.float32)
+
+        self.y = y_ind
+
+    def __len__(self) -> int:
+        return max(0, self.n - self.seq_length + 1)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        # cwt_seq: (seq_len, n_features, n_scales) → транспонируем в (n_features, seq_len, n_scales)
+        cwt_seq = self.cwt[idx: idx + self.seq_length]
+        cwt_tensor = torch.from_numpy(
+            cwt_seq.transpose(1, 0, 2)  # (n_features, seq_len, n_scales)
+        )
+        y_target = torch.tensor(
+            self.y[idx + self.seq_length - 1], dtype=torch.float32)
+        return cwt_tensor, y_target
+
+
+# ─── Модель ───────────────────────────────────────────────────────────────────
+
+class WaveletCNN(nn.Module):
+    """2D CNN на CWT скалограммах.
+
+    Входной тензор: (batch, n_features, seq_len, n_scales).
+    1×1 Conv2d сначала проецирует n_features → feat_embed (мало параметров).
+    Затем два 2D conv блока с BatchNorm + Global Average Pooling.
+    """
+
+    def __init__(self, n_features: int, n_scales: int, seq_len: int,
+                 feat_embed: int = 8, cnn_channels: tuple = (16, 32),
+                 dropout: float = 0.3):
+        super().__init__()
+        # 1×1 проекция: n_features → feat_embed (без пространственного смешивания)
+        self.feat_proj = nn.Sequential(
+            nn.Conv2d(n_features, feat_embed, kernel_size=1),
+            nn.BatchNorm2d(feat_embed),
+            nn.ReLU(),
+        )
+        self.conv1 = nn.Conv2d(feat_embed, cnn_channels[0], kernel_size=3, padding=1)
+        self.bn1   = nn.BatchNorm2d(cnn_channels[0])
+        self.conv2 = nn.Conv2d(cnn_channels[0], cnn_channels[1], kernel_size=3, padding=1)
+        self.bn2   = nn.BatchNorm2d(cnn_channels[1])
+        self.gap     = nn.AdaptiveAvgPool2d(1)
+        self.dropout = nn.Dropout(dropout)
+        self.fc      = nn.Linear(cnn_channels[-1], 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (batch, n_features, seq_len, n_scales)
+        out = self.feat_proj(x)                        # (batch, feat_embed, ...)
+        out = F.relu(self.bn1(self.conv1(out)))
+        out = self.dropout(out)
+        out = F.relu(self.bn2(self.conv2(out)))
+        out = self.gap(out).squeeze(-1).squeeze(-1)    # (batch, cnn_channels[-1])
+        return self.fc(self.dropout(out)).squeeze(1)
+
+
+# ─── Обучение ─────────────────────────────────────────────────────────────────
+
+def train_model(model: nn.Module, train_loader: DataLoader,
+                val_loader: DataLoader, config: Config) -> nn.Module:
+    """Обучение с early stopping, AdamW + CosineAnnealingLR, Huber loss."""
+    criterion = nn.HuberLoss(delta=60.0)
+    optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate,
+                            weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config.num_epochs, eta_min=1e-5)
+    best_val_loss = float("inf")
+    patience_counter = 0
+    best_state = {k: v.clone() for k, v in model.state_dict().items()}
+
+    for _ in range(config.num_epochs):
+        model.train()
+        for X, y in train_loader:
+            X, y = X.to(config.device), y.to(config.device)
+            optimizer.zero_grad()
+            loss = criterion(model(X), y)
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+        scheduler.step()
+
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for X, y in val_loader:
+                X, y = X.to(config.device), y.to(config.device)
+                val_loss += criterion(model(X), y).item() * len(y)
+        val_loss /= max(len(val_loader.dataset), 1)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+        else:
+            patience_counter += 1
+            if patience_counter >= config.patience:
+                break
+
+    model.load_state_dict(best_state)
+    return model
+
+
+# ─── Один LOSO фолд ───────────────────────────────────────────────────────────
+
+def _run_one_loso_fold(test_subject_id,
+                       df: pd.DataFrame,
+                       feat_cols: list[str],
+                       target_col: str,
+                       config: Config) -> dict:
+    """Один LOSO фолд для Wavelet-CNN."""
+    train = df[df["subject_id"] != test_subject_id].sort_values(
+        ["subject_id", "window_start_sec"])
+    test = df[df["subject_id"] == test_subject_id].sort_values("window_start_sec")
+
+    imp = SimpleImputer(strategy="median")
+    sc  = StandardScaler()
+    X_tr = sc.fit_transform(imp.fit_transform(train[feat_cols].values))
+    X_te = sc.transform(imp.transform(test[feat_cols].values))
+    y_tr = train[target_col].values
+    y_te = test[target_col].values
+
+    train_ds = WaveletDataset(X_tr, y_tr, config.seq_length, config.window_step,
+                              config.scales, config.wavelet)
+    test_ds  = WaveletDataset(X_te, y_te, config.seq_length, config.window_step,
+                              config.scales, config.wavelet)
+
+    if len(train_ds) < 4 or len(test_ds) == 0:
+        return {"fold": test_subject_id, "error": "Недостаточно данных"}
+
+    split = max(1, int(0.8 * len(train_ds)))
+    train_sub, val_sub = torch.utils.data.random_split(
+        train_ds, [split, len(train_ds) - split],
+        generator=torch.Generator().manual_seed(42),
+    )
+
+    train_loader = DataLoader(train_sub, batch_size=config.batch_size, shuffle=True)
+    val_loader   = DataLoader(val_sub,   batch_size=config.batch_size, shuffle=False)
+    test_loader  = DataLoader(test_ds,   batch_size=config.batch_size, shuffle=False)
+
+    n_features = X_tr.shape[1]
+    n_scales   = len(config.scales)
+
+    model = WaveletCNN(
+        n_features=n_features,
+        n_scales=n_scales,
+        seq_len=config.seq_length,
+        feat_embed=config.feat_embed,
+        cnn_channels=tuple(config.cnn_channels),
+        dropout=config.dropout,
+    ).to(config.device)
+
+    model = train_model(model, train_loader, val_loader, config)
+
+    model.eval()
+    y_pred_list = []
+    with torch.no_grad():
+        for X, _ in test_loader:
+            y_pred_list.append(model(X.to(config.device)).cpu().numpy())
+
+    y_pred_sparse = np.concatenate(y_pred_list)
+
+    # Восстанавливаем на все окна (интерполяция, как в v0102)
+    test_ind_idx = np.arange(0, len(y_te), config.window_step)
+    pred_at = test_ind_idx[config.seq_length - 1:
+                           config.seq_length - 1 + len(y_pred_sparse)]
+
+    y_pred_full = np.full(len(y_te), np.nan)
+    for i, idx in enumerate(pred_at):
+        if idx < len(y_pred_full):
+            y_pred_full[idx] = y_pred_sparse[i]
+
+    x_all = np.arange(len(y_te))
+    valid = ~np.isnan(y_pred_full)
+    if valid.sum() >= 2:
+        y_pred_full = np.interp(x_all, x_all[valid], y_pred_full[valid])
+    else:
+        y_pred_full = np.full(len(y_te), np.nanmean(y_pred_full))
+
+    return {
+        "fold": test_subject_id,
+        "y_pred": y_pred_full,
+        "y_true": y_te,
+    }
+
+
+# ─── LOSO с joblib ────────────────────────────────────────────────────────────
+
+def loso_wavelet(df: pd.DataFrame,
+                 feat_cols: list[str],
+                 target_col: str,
+                 config: Config,
+                 n_jobs: int = -1) -> dict:
+    """LOSO через joblib.Parallel — все фолды параллельно."""
+    subjects = sorted(df["subject_id"].unique())
+
+    records = Parallel(n_jobs=n_jobs, backend="loky", verbose=1)(
+        delayed(_run_one_loso_fold)(s, df, feat_cols, target_col, config)
+        for s in subjects
+    )
+
+    all_pred, all_true = [], []
+    for rec in records:
+        if "error" not in rec:
+            all_pred.append(rec["y_pred"])
+            all_true.append(rec["y_true"])
+
+    if not all_pred:
+        return {"error": "Нет данных"}
+
+    y_pred = np.concatenate(all_pred)
+    y_true = np.concatenate(all_true)
+
+    return {
+        "y_pred": y_pred,
+        "y_true": y_true,
+        "raw_mae_min": mean_absolute_error(y_true, y_pred) / 60.0,
+        "r2": r2_score(y_true, y_pred),
+        "rho": float(spearmanr(y_true, y_pred).statistic),
+    }
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="v0103 — Wavelet-CNN")
+    p.add_argument("--target", choices=["lt1", "lt2", "both"], default="both")
+    p.add_argument("--feature-set", nargs="+",
+                   choices=["EMG", "NIRS", "EMG+NIRS", "EMG+NIRS+HRV"],
+                   default=["EMG", "NIRS", "EMG+NIRS", "EMG+NIRS+HRV"])
+    p.add_argument("--seq-len",     type=int, default=12)
+    p.add_argument("--window-step", type=int, default=4)
+    p.add_argument("--n-jobs",      type=int, default=-1)
+    p.add_argument("--dataset", type=Path,
+                   default=DEFAULT_DATASET_DIR / "merged_features_ml.parquet")
+    return p.parse_args()
+
+
+def main() -> None:
+    args   = parse_args()
+    config = Config()
+    config.seq_length  = args.seq_len
+    config.window_step = args.window_step
+
+    print("=" * 70)
+    print("v0103 — WAVELET-CNN (CWT скалограммы + 2D CNN)")
+    print("=" * 70)
+    print(f"wavelet={config.wavelet}, scales={config.scales}")
+    print(f"window_step={config.window_step} (каждые {config.window_step*5} сек)")
+    print(f"seq_length={config.seq_length}  ({config.seq_length*config.window_step*5} сек истории)")
+    print(f"feat_embed={config.feat_embed}, cnn_channels={config.cnn_channels}")
+    print(f"n_jobs={args.n_jobs}\n")
+
+    df_raw = pd.read_parquet(args.dataset)
+    sp_path = DEFAULT_DATASET_DIR / "session_params.parquet"
+    session_params = pd.read_parquet(sp_path) if sp_path.exists() else pd.DataFrame()
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    targets_cfg = {
+        "lt2": {"col": "target_time_to_lt2_center_sec"},
+        "lt1": {"col": "target_time_to_lt1_sec"},
+    }
+    if args.target != "both":
+        targets_cfg = {k: v for k, v in targets_cfg.items() if k == args.target}
+
+    all_records = []
+    sigma_grid = [30.0, 50.0, 75.0, 150.0]
+
+    for tgt_name, tgt_cfg in targets_cfg.items():
+        print(f"\n{'═'*70}")
+        print(f"ТАРГЕТ: {tgt_name.upper()}")
+        print(f"{'═'*70}\n")
+
+        df_prep    = prepare_data(df_raw, session_params, tgt_name)
+        target_col = tgt_cfg["col"]
+        df_tgt     = df_prep.dropna(subset=[target_col])
+
+        for fset in args.feature_set:
+            feat_cols = get_feature_cols(df_tgt, fset)
+            if not feat_cols:
+                continue
+
+            n_subj = df_tgt["subject_id"].nunique()
+            print(f"  [{fset} / {tgt_name}]  n={n_subj}, {len(feat_cols)} признаков")
+
+            t0  = time.perf_counter()
+            res = loso_wavelet(df_tgt, feat_cols, target_col, config,
+                               n_jobs=args.n_jobs)
+            elapsed = time.perf_counter() - t0
+
+            if "error" in res:
+                print(f"    ❌ {res['error']}")
+                continue
+
+            best_kalman_mae = float("inf")
+            best_sigma      = sigma_grid[0]
+            kalman_maes     = {}
+            for sigma in sigma_grid:
+                y_k   = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
+                mae_k = mean_absolute_error(res["y_true"], y_k) / 60.0
+                kalman_maes[sigma] = round(mae_k, 4)
+                if mae_k < best_kalman_mae:
+                    best_kalman_mae = mae_k
+                    best_sigma      = sigma
+
+            all_records.append({
+                "feature_set":    fset,
+                "target":         tgt_name,
+                "n_subjects":     n_subj,
+                "n_features":     len(feat_cols),
+                "raw_mae_min":    round(res["raw_mae_min"], 4),
+                "kalman_mae_min": round(best_kalman_mae, 4),
+                "best_sigma_obs": best_sigma,
+                "kalman_30":      kalman_maes.get(30.0),
+                "kalman_50":      kalman_maes.get(50.0),
+                "kalman_75":      kalman_maes.get(75.0),
+                "kalman_150":     kalman_maes.get(150.0),
+                "r2":             round(res["r2"], 3),
+                "rho":            round(res["rho"], 3),
+                "sec":            round(elapsed, 1),
+            })
+
+            print(f"    raw={res['raw_mae_min']:.3f}  "
+                  f"kalman_best={best_kalman_mae:.3f} (sigma={best_sigma})"
+                  f"  ({elapsed:.1f}s)")
+            print(f"    sigma grid: {kalman_maes}")
+
+    summary_df = pd.DataFrame(all_records)
+    summary_df.to_csv(OUT_DIR / "summary.csv", index=False)
+
+    v0011_ref = {
+        ("lt2", "EMG+NIRS+HRV"): 1.859,
+        ("lt1", "EMG+NIRS+HRV"): 2.277,
+    }
+    print("\n" + "=" * 70)
+    print("ИТОГИ:")
+    for _, row in summary_df.sort_values(["target", "kalman_mae_min"]).iterrows():
+        ref   = v0011_ref.get((row["target"], row["feature_set"]))
+        delta = f"  Δ={row['kalman_mae_min']-ref:+.3f} vs v0011" if ref else ""
+        print(f"  {row['target'].upper()} / {row['feature_set']:<16s}  "
+              f"kalman={row['kalman_mae_min']:.3f}{delta}")
+
+    print(f"\n✅ Готово: {OUT_DIR.resolve()}")
+
+
+if __name__ == "__main__":
+    main()

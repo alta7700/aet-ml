@@ -94,6 +94,50 @@ def build_subject_row(subject_file: SubjectFile) -> dict[str, object]:
     return row
 
 
+# Коэффициенты импутации: вычислены по 12/14 субъектов с полными данными.
+# leg_lean / skeletal_muscle_mass = 0.271 (CV 6%)
+# leg_fat  / body_fat_mass        = 0.157 (CV 10%)
+_LEG_LEAN_FRAC = 0.271
+_LEG_FAT_FRAC  = 0.157
+
+
+def _add_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Добавляет производные антропометрические индексы.
+
+    Импутация leg_lean / leg_fat: если значение отсутствует,
+    восстанавливается из общих параметров тела по стабильным пропорциям
+    (_LEG_LEAN_FRAC, _LEG_FAT_FRAC), вычисленным по имеющимся данным.
+    """
+    df = df.copy()
+
+    # ── Импутация ноги ────────────────────────────────────────────────────────
+    for col, total_col, frac in [
+        ("dominant_leg_lean_mass", "skeletal_muscle_mass", _LEG_LEAN_FRAC),
+        ("dominant_leg_fat_mass",  "body_fat_mass",        _LEG_FAT_FRAC),
+    ]:
+        imputed_col = f"{col}_imputed"
+        df[imputed_col] = False
+        missing = df[col].isna() & df[total_col].notna()
+        df.loc[missing, col] = df.loc[missing, total_col] * frac
+        df.loc[missing, imputed_col] = True
+
+    # ── Производные индексы ───────────────────────────────────────────────────
+    h = df["height"].div(100)                          # см → м
+    w = df["weight"]
+    bf = df["body_fat_mass"]
+    sm = df["skeletal_muscle_mass"]
+    ll = df["dominant_leg_lean_mass"]
+    lf = df["dominant_leg_fat_mass"]
+
+    df["bmi"]                = (w / h**2).round(1)
+    df["body_fat_pct"]       = (bf / w * 100).round(1)
+    df["muscle_to_fat_total"] = (sm / bf).round(2)
+    df["leg_fat_pct"]        = (lf / (ll + lf) * 100).round(1)   # ковариат NIRS-аттенюации
+    df["muscle_to_fat_leg"]  = (ll / lf).round(2)
+
+    return df
+
+
 def build_subjects_table(data_dir: Path) -> tuple[pd.DataFrame, list[str]]:
     """Строит таблицу испытуемых и возвращает также список пропущенных папок."""
 
@@ -102,4 +146,5 @@ def build_subjects_table(data_dir: Path) -> tuple[pd.DataFrame, list[str]]:
     data_frame = pd.DataFrame(rows)
     if not data_frame.empty:
         data_frame = data_frame.sort_values(["subject_id", "subject_dir_name"]).reset_index(drop=True)
+        data_frame = _add_derived_columns(data_frame)
     return data_frame, skipped

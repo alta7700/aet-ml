@@ -16,4 +16,7 @@ dependencies = [
     "scipy>=1.17.1",
     "seaborn>=0.13.2",
     "shap>=0.51.0",
+    "tabulate>=0.10.0",
+    "torch>=2.0.0",
+    "pytorch-lightning>=2.0.0",
 ]

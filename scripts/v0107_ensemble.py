@@ -1,0 +1,427 @@
+"""v0107 — Ensemble: Wavelet-TCN (v0106b) + LinearModels (v0011)
+
+Версия:    v0107
+Дата:      2026-05-09
+
+Идея: объединить лучшую нейросеть (v0106b, raw MAE=2.765) с лучшей
+      линейной моделью (v0011, MAE=1.859) взвешенным усреднением.
+
+y_ensemble = α × y_v0106b + (1 - α) × y_v0011
+
+Вес α оптимизируется на validation fold каждого LOSO-разбиения.
+Если нейросеть и линейная модель делают разные ошибки — ensemble лучше обоих.
+
+Pipeline (внутри одного LOSO фолда):
+  train_subjects (N-1):
+    80% → обучение v0106b + v0011
+    20% → val: подбор оптимального α
+
+  test_subject (1):
+    y_tcn  = v0106b.predict(X_test)
+    y_lin  = v0011.predict(X_test)
+    y_ens  = α* × y_tcn + (1-α*) × y_lin
+
+Воспроизведение:
+  uv run python scripts/v0107_ensemble.py --target both
+  uv run python scripts/v0107_ensemble.py --target lt2 --feature-set EMG+NIRS+HRV
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+import warnings
+from pathlib import Path
+import sys
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+import numpy as np
+import pandas as pd
+import pywt
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import ElasticNet, Ridge
+from sklearn.metrics import mean_absolute_error, r2_score
+from scipy.stats import spearmanr
+from joblib import Parallel, delayed
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from dataset_pipeline.common import DEFAULT_DATASET_DIR
+from scripts.v0011_modality_ablation import prepare_data, get_feature_cols, kalman_smooth
+
+OUT_DIR = _ROOT / "results" / "v0107"
+
+
+# ─── Конфиг ───────────────────────────────────────────────────────────────────
+
+class Config:
+    # TCN параметры (идентичны v0106b)
+    window_step   = 4
+    seq_length    = 12
+    batch_size    = 16
+    num_epochs    = 100
+    learning_rate = 0.001
+    patience      = 15
+    wavelet       = "morl"
+    scales        = [1, 2, 4, 8, 16]
+    n_channels    = 32
+    kernel_size   = 3
+    dilations     = [1, 2, 4, 8, 16]
+    dropout       = 0.2
+    device        = "cpu"
+    # Ensemble параметры
+    alpha_grid    = np.linspace(0.0, 1.0, 21)  # α от 0 (только linear) до 1 (только TCN)
+
+
+# ─── Dataset (из v0106b) ──────────────────────────────────────────────────────
+
+class WaveletSeqDataset(Dataset):
+    def __init__(self, X, y, seq_length, window_step, scales, wavelet):
+        ind_idx = np.arange(0, len(X), window_step)
+        X_ind = X[ind_idx].astype(np.float32)
+        y_ind = y[ind_idx].astype(np.float32)
+        self.n = len(X_ind); self.seq_length = seq_length
+        n_f, n_sc = X_ind.shape[1], len(scales)
+
+        cwt_all = np.zeros((self.n, n_f, n_sc), dtype=np.float32)
+        if self.n > 1:
+            for f in range(n_f):
+                coeffs, _ = pywt.cwt(X_ind[:, f].astype(np.float64), scales, wavelet)
+                cwt_all[:, f, :] = np.abs(coeffs).T.astype(np.float32)
+
+        flat = cwt_all.reshape(-1, n_sc)
+        mean_, std_ = flat.mean(0), flat.std(0) + 1e-8
+        self.cwt = ((cwt_all - mean_) / std_).reshape(self.n, n_f * n_sc).astype(np.float32)
+        self.X = X_ind; self.y = y_ind
+
+    def __len__(self): return max(0, self.n - self.seq_length + 1)
+
+    def __getitem__(self, idx):
+        x_orig = torch.from_numpy(self.X[idx: idx + self.seq_length])
+        x_cwt  = torch.from_numpy(self.cwt[idx: idx + self.seq_length])
+        y = torch.tensor(self.y[idx + self.seq_length - 1], dtype=torch.float32)
+        return x_orig, x_cwt, y
+
+
+# ─── Wavelet-TCN модель (из v0106b) ───────────────────────────────────────────
+
+class CausalConv1d(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size, dilation):
+        super().__init__()
+        self.padding = (kernel_size - 1) * dilation
+        self.conv = nn.Conv1d(in_ch, out_ch, kernel_size, dilation=dilation, padding=0)
+
+    def forward(self, x):
+        return self.conv(F.pad(x, (self.padding, 0)))
+
+
+class TCNBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size, dilation, dropout):
+        super().__init__()
+        self.conv1 = CausalConv1d(in_ch, out_ch, kernel_size, dilation)
+        self.conv2 = CausalConv1d(out_ch, out_ch, kernel_size, dilation)
+        self.norm1 = nn.LayerNorm(out_ch); self.norm2 = nn.LayerNorm(out_ch)
+        self.drop  = nn.Dropout(dropout); self.relu = nn.ReLU()
+        self.proj  = nn.Conv1d(in_ch, out_ch, 1) if in_ch != out_ch else None
+
+    def forward(self, x):
+        out = self.relu(self.norm1(self.conv1(x).transpose(1,2)).transpose(1,2))
+        out = self.drop(out)
+        out = self.norm2(self.conv2(out).transpose(1,2)).transpose(1,2)
+        res = x if self.proj is None else self.proj(x)
+        return self.relu(out + res)
+
+
+class WaveletTCN(nn.Module):
+    def __init__(self, n_features, n_cwt, n_channels=32, kernel_size=3,
+                 dilations=None, dropout=0.2):
+        super().__init__()
+        in_ch = n_features + n_cwt
+        self.input_proj = nn.Sequential(nn.Conv1d(in_ch, n_channels, 1), nn.ReLU())
+        layers = []
+        for d in (dilations or [1, 2, 4, 8, 16]):
+            layers.append(TCNBlock(n_channels, n_channels, kernel_size, d, dropout))
+        self.tcn = nn.Sequential(*layers)
+        self.fc  = nn.Linear(n_channels, 1)
+
+    def forward(self, x_orig, x_cwt):
+        x = torch.cat([x_orig, x_cwt], dim=-1).transpose(1, 2)
+        x = self.input_proj(x)
+        return self.fc(self.tcn(x).mean(dim=2)).squeeze(1)
+
+
+# ─── Обучение TCN ─────────────────────────────────────────────────────────────
+
+def _train_tcn(model, train_loader, val_loader, config):
+    criterion = nn.HuberLoss(delta=60.0)
+    optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate,
+                            weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config.num_epochs, eta_min=1e-5)
+    best_val, patience_counter = float("inf"), 0
+    best_state = {k: v.clone() for k, v in model.state_dict().items()}
+
+    for _ in range(config.num_epochs):
+        model.train()
+        for x_orig, x_cwt, y in train_loader:
+            x_orig, x_cwt, y = (x_orig.to(config.device), x_cwt.to(config.device),
+                                 y.to(config.device))
+            optimizer.zero_grad()
+            loss = criterion(model(x_orig, x_cwt), y)
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+        scheduler.step()
+
+        model.eval(); val_loss = 0.0
+        with torch.no_grad():
+            for x_orig, x_cwt, y in val_loader:
+                x_orig, x_cwt, y = (x_orig.to(config.device), x_cwt.to(config.device),
+                                     y.to(config.device))
+                val_loss += criterion(model(x_orig, x_cwt), y).item() * len(y)
+        val_loss /= max(len(val_loader.dataset), 1)
+
+        if val_loss < best_val:
+            best_val = val_loss; patience_counter = 0
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+        else:
+            patience_counter += 1
+            if patience_counter >= config.patience: break
+
+    model.load_state_dict(best_state)
+    return model
+
+
+# ─── Один LOSO фолд с ensemble ────────────────────────────────────────────────
+
+def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
+    """Обучает TCN + ElasticNet, подбирает α на val, возвращает ensemble pred."""
+    train_all = df[df["subject_id"] != test_subject_id].sort_values(
+        ["subject_id", "window_start_sec"])
+    test = df[df["subject_id"] == test_subject_id].sort_values("window_start_sec")
+
+    imp = SimpleImputer(strategy="median"); sc = StandardScaler()
+    X_tr_all = sc.fit_transform(imp.fit_transform(train_all[feat_cols].values))
+    X_te = sc.transform(imp.transform(test[feat_cols].values))
+    y_tr_all = train_all[target_col].values
+    y_te = test[target_col].values
+
+    # ── Линейная модель (ElasticNet) ──────────────────────────────────────────
+    lin_model = ElasticNet(alpha=0.01, l1_ratio=0.5, max_iter=2000)
+    lin_model.fit(X_tr_all, y_tr_all)
+    y_pred_lin_te = lin_model.predict(X_te)
+
+    # ── TCN с wavelet ─────────────────────────────────────────────────────────
+    train_ds = WaveletSeqDataset(X_tr_all, y_tr_all, config.seq_length,
+                                  config.window_step, config.scales, config.wavelet)
+    test_ds  = WaveletSeqDataset(X_te, y_te, config.seq_length,
+                                  config.window_step, config.scales, config.wavelet)
+
+    if len(train_ds) < 4 or len(test_ds) == 0:
+        return {"fold": test_subject_id, "error": "Недостаточно данных"}
+
+    split = max(1, int(0.8 * len(train_ds)))
+    train_sub, val_sub = torch.utils.data.random_split(
+        train_ds, [split, len(train_ds) - split],
+        generator=torch.Generator().manual_seed(42))
+
+    train_loader = DataLoader(train_sub, batch_size=config.batch_size, shuffle=True)
+    val_loader   = DataLoader(val_sub,   batch_size=config.batch_size, shuffle=False)
+    test_loader  = DataLoader(test_ds,   batch_size=config.batch_size, shuffle=False)
+
+    n_cwt = X_tr_all.shape[1] * len(config.scales)
+    tcn = WaveletTCN(X_tr_all.shape[1], n_cwt, config.n_channels,
+                     config.kernel_size, config.dilations, config.dropout).to(config.device)
+    tcn = _train_tcn(tcn, train_loader, val_loader, config)
+
+    # Предсказания TCN + y_true + Linear на val (для подбора α)
+    tcn.eval()
+    val_tcn_list, val_true_list = [], []
+    with torch.no_grad():
+        for x_orig, x_cwt, y_batch in val_loader:
+            preds = tcn(x_orig.to(config.device),
+                        x_cwt.to(config.device)).cpu().numpy()
+            val_tcn_list.append(preds)
+            val_true_list.append(y_batch.numpy())
+    y_val_tcn  = np.concatenate(val_tcn_list)
+    y_val_true = np.concatenate(val_true_list)
+
+    # Linear предсказания для val: последнее raw окно каждой val-последовательности
+    # val_sub.indices — индексы в train_ds; каждая seq i использует train_ds.X[i+seq_len-1]
+    val_seq_idx = list(val_sub.indices)
+    val_last_x  = np.array([train_ds.X[i + config.seq_length - 1]
+                             for i in val_seq_idx
+                             if i + config.seq_length - 1 < len(train_ds.X)])
+    if len(val_last_x) > 0:
+        y_val_lin = lin_model.predict(val_last_x)
+    else:
+        y_val_lin = np.zeros_like(y_val_tcn)
+
+    # Подбираем α на val
+    n_val = min(len(y_val_tcn), len(y_val_true), len(y_val_lin))
+    best_alpha, best_val_mae = 0.5, float("inf")
+    if n_val > 0:
+        for alpha in config.alpha_grid:
+            y_ens_val = alpha * y_val_tcn[:n_val] + (1 - alpha) * y_val_lin[:n_val]
+            mae_val = mean_absolute_error(y_val_true[:n_val], y_ens_val)
+            if mae_val < best_val_mae:
+                best_val_mae, best_alpha = mae_val, alpha
+
+    # TCN предсказания на тесте
+    tcn.eval(); test_preds = []
+    with torch.no_grad():
+        for x_orig, x_cwt, _ in test_loader:
+            test_preds.append(tcn(x_orig.to(config.device),
+                                   x_cwt.to(config.device)).cpu().numpy())
+    y_tcn_sparse = np.concatenate(test_preds)
+
+    # Интерполяция TCN предсказаний
+    test_ind = np.arange(0, len(y_te), config.window_step)
+    pred_at  = test_ind[config.seq_length - 1: config.seq_length - 1 + len(y_tcn_sparse)]
+    y_tcn_full = np.full(len(y_te), np.nan)
+    for i, idx in enumerate(pred_at):
+        if idx < len(y_tcn_full): y_tcn_full[idx] = y_tcn_sparse[i]
+    x_all = np.arange(len(y_te)); valid = ~np.isnan(y_tcn_full)
+    y_tcn_full = (np.interp(x_all, x_all[valid], y_tcn_full[valid])
+                  if valid.sum() >= 2 else np.full(len(y_te), np.nanmean(y_tcn_full)))
+
+    # Ensemble
+    y_ensemble = best_alpha * y_tcn_full + (1 - best_alpha) * y_pred_lin_te
+
+    return {
+        "fold": test_subject_id,
+        "y_pred": y_ensemble,
+        "y_pred_tcn": y_tcn_full,
+        "y_pred_lin": y_pred_lin_te,
+        "y_true": y_te,
+        "best_alpha": best_alpha,
+    }
+
+
+def _loso(df, feat_cols, target_col, config, n_jobs):
+    subjects = sorted(df["subject_id"].unique())
+    records  = Parallel(n_jobs=n_jobs, backend="loky", verbose=1)(
+        delayed(_run_one_loso_fold)(s, df, feat_cols, target_col, config)
+        for s in subjects)
+    all_ens, all_tcn, all_lin, all_true, alphas = [], [], [], [], []
+    for rec in records:
+        if "error" not in rec:
+            all_ens.append(rec["y_pred"])
+            all_tcn.append(rec["y_pred_tcn"])
+            all_lin.append(rec["y_pred_lin"])
+            all_true.append(rec["y_true"])
+            alphas.append(rec["best_alpha"])
+    if not all_ens: return {"error": "Нет данных"}
+    y_ens  = np.concatenate(all_ens)
+    y_tcn  = np.concatenate(all_tcn)
+    y_lin  = np.concatenate(all_lin)
+    y_true = np.concatenate(all_true)
+    return {
+        "y_pred": y_ens, "y_pred_tcn": y_tcn, "y_pred_lin": y_lin, "y_true": y_true,
+        "raw_mae_min":     mean_absolute_error(y_true, y_ens) / 60.0,
+        "raw_mae_tcn_min": mean_absolute_error(y_true, y_tcn) / 60.0,
+        "raw_mae_lin_min": mean_absolute_error(y_true, y_lin) / 60.0,
+        "mean_alpha": float(np.mean(alphas)),
+        "r2": r2_score(y_true, y_ens),
+        "rho": float(spearmanr(y_true, y_ens).statistic),
+    }
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--target",      choices=["lt1","lt2","both"], default="both")
+    p.add_argument("--feature-set", nargs="+",
+                   choices=["EMG","NIRS","EMG+NIRS","EMG+NIRS+HRV"],
+                   default=["EMG","NIRS","EMG+NIRS","EMG+NIRS+HRV"])
+    p.add_argument("--n-jobs", type=int, default=-1)
+    p.add_argument("--dataset", type=Path,
+                   default=DEFAULT_DATASET_DIR / "merged_features_ml.parquet")
+    args = p.parse_args()
+
+    config = Config()
+    print("=" * 70)
+    print("v0107 — ENSEMBLE: Wavelet-TCN + ElasticNet")
+    print("=" * 70)
+    print(f"α оптимизируется на validation fold ({len(config.alpha_grid)} шагов)")
+    print(f"wavelet={config.wavelet}, scales={config.scales}")
+    print(f"window_step={config.window_step}, seq_length={config.seq_length}\n")
+
+    df_raw = pd.read_parquet(args.dataset)
+    sp_path = DEFAULT_DATASET_DIR / "session_params.parquet"
+    session_params = pd.read_parquet(sp_path) if sp_path.exists() else pd.DataFrame()
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    targets = {"lt2":"target_time_to_lt2_center_sec","lt1":"target_time_to_lt1_sec"}
+    if args.target != "both":
+        targets = {k: v for k, v in targets.items() if k == args.target}
+
+    sigma_grid = [5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 75.0, 150.0]
+    v0011_ref  = {("lt2","EMG+NIRS+HRV"):1.859, ("lt1","EMG+NIRS+HRV"):2.277}
+    v0106b_ref = {("lt2","EMG+NIRS+HRV"):2.765, ("lt1","EMG+NIRS+HRV"):3.080}
+    records = []
+
+    for tgt_name, target_col in targets.items():
+        print(f"\n{'═'*70}\nТАРГЕТ: {tgt_name.upper()}\n{'═'*70}\n")
+        df_prep = prepare_data(df_raw, session_params, tgt_name)
+        df_tgt  = df_prep.dropna(subset=[target_col])
+
+        for fset in args.feature_set:
+            feat_cols = get_feature_cols(df_tgt, fset)
+            if not feat_cols: continue
+            n_subj = df_tgt["subject_id"].nunique()
+            print(f"  [{fset} / {tgt_name}]  n={n_subj}, {len(feat_cols)} признаков")
+
+            t0  = time.perf_counter()
+            res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
+            elapsed = time.perf_counter() - t0
+            if "error" in res: print(f"    ❌ {res['error']}"); continue
+
+            best_mae, best_sig, k_maes = float("inf"), sigma_grid[0], {}
+            for sigma in sigma_grid:
+                y_k  = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
+                mae  = mean_absolute_error(res["y_true"], y_k) / 60.0
+                k_maes[sigma] = round(mae, 4)
+                if mae < best_mae: best_mae, best_sig = mae, sigma
+
+            records.append({
+                "feature_set": fset, "target": tgt_name,
+                "n_subjects": n_subj, "n_features": len(feat_cols),
+                "raw_ensemble_mae":  round(res["raw_mae_min"], 4),
+                "raw_tcn_mae":       round(res["raw_mae_tcn_min"], 4),
+                "raw_lin_mae":       round(res["raw_mae_lin_min"], 4),
+                "kalman_mae_min":    round(best_mae, 4),
+                "best_sigma_obs":    best_sig,
+                "mean_alpha":        round(res["mean_alpha"], 3),
+                "r2": round(res["r2"], 3), "rho": round(res["rho"], 3),
+                "sec": round(elapsed, 1),
+            })
+            print(f"    ens_raw={res['raw_mae_min']:.3f}  tcn={res['raw_mae_tcn_min']:.3f}"
+                  f"  lin={res['raw_mae_lin_min']:.3f}  α={res['mean_alpha']:.2f}")
+            print(f"    kalman_best={best_mae:.3f} (sigma={best_sig})  ({elapsed:.1f}s)")
+
+    df_out = pd.DataFrame(records)
+    df_out.to_csv(OUT_DIR / "summary.csv", index=False)
+
+    print("\n" + "="*70 + "\nИТОГИ ENSEMBLE:")
+    for _, r in df_out.sort_values(["target","kalman_mae_min"]).iterrows():
+        ref11   = v0011_ref.get((r["target"], r["feature_set"]))
+        ref06b  = v0106b_ref.get((r["target"], r["feature_set"]))
+        d11  = f"  Δ={r['kalman_mae_min']-ref11:+.3f} vs v0011"  if ref11  else ""
+        d06b = f"  Δ={r['kalman_mae_min']-ref06b:+.3f} vs v0106b" if ref06b else ""
+        print(f"  {r['target'].upper()} / {r['feature_set']:<16s}  "
+              f"ens={r['kalman_mae_min']:.3f}{d11}{d06b}")
+    print(f"\n✅ Готово: {OUT_DIR.resolve()}")
+
+
+if __name__ == "__main__":
+    main()

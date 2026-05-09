@@ -20,12 +20,22 @@
                   ▼
           v0010  Расширенная сетка Kalman (граница применимости)
 
+          v0102  TCN (базовый)
+          v0103  Wavelet-CNN
+          v0104  Attention-LSTM
+          v0105  TCN + Monotonic loss
+          v0106a Wavelet + Attention-LSTM (гибрид)
+          v0106b Wavelet → TCN (лучший результат)
+          v0106c Wavelet + Attention + Monotonic
+          v0107  Ensemble: WavTCN + ElasticNet
+
 Каждый скрипт самодостаточен и пишет в results/v{NNNN}/.
-Параллельный блок запускается со --no-plots (графики не нужны в оркестраторе).
+ML-скрипты запускаются с --no-plots; NN-скрипты без флагов (параллелят через joblib внутри).
 
 Запуск:
   uv run python run_phases/phase2.py
   uv run python run_phases/phase2.py --only-versions v0004 v0009
+  uv run python run_phases/phase2.py --only-versions v0106b v0107
 """
 
 from __future__ import annotations
@@ -47,7 +57,20 @@ PARALLEL_VERSIONS = ["v0001", "v0002", "v0004", "v0005", "v0006", "v0007", "v000
 # (v0009 логически после v0008, v0010 после v0009)
 SEQUENTIAL_VERSIONS = ["v0009", "v0010"]
 
-ALL_VERSIONS = PARALLEL_VERSIONS + SEQUENTIAL_VERSIONS
+# Нейросетевые версии — каждая сама параллелит через joblib (n_jobs=-1),
+# поэтому запускаем последовательно друг за другом
+NN_VERSIONS = [
+    "v0102",   # TCN (базовый)
+    "v0103",   # Wavelet-CNN
+    "v0104",   # Attention-LSTM
+    "v0105",   # TCN + Monotonic loss
+    "v0106a",  # Wavelet + Attention-LSTM (гибрид)
+    "v0106b",  # Wavelet → TCN (лучший результат)
+    "v0106c",  # Wavelet + Attention + Monotonic
+    "v0107",   # Ensemble: WavTCN + ElasticNet
+]
+
+ALL_VERSIONS = PARALLEL_VERSIONS + SEQUENTIAL_VERSIONS + NN_VERSIONS
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,7 +101,8 @@ def run_version(version: str, plots: bool) -> tuple[str, int, float]:
     """Запускает один версионированный скрипт. Возвращает (version, returncode, elapsed)."""
     script = _script(version)
     cmd = ["uv", "run", "python", str(script)]
-    if not plots:
+    # NN-скрипты не принимают --no-plots (у них нет matplotlib-графиков в CLI)
+    if not plots and version not in NN_VERSIONS:
         cmd.append("--no-plots")
     t0 = time.perf_counter()
     result = subprocess.run(cmd, cwd=_ROOT, capture_output=True, text=True)
@@ -143,9 +167,11 @@ def main() -> None:
             sys.exit(1)
         parallel = [v for v in PARALLEL_VERSIONS if v in requested]
         sequential = [v for v in SEQUENTIAL_VERSIONS if v in requested]
+        nn_versions = [v for v in NN_VERSIONS if v in requested]
     else:
         parallel = PARALLEL_VERSIONS
         sequential = SEQUENTIAL_VERSIONS
+        nn_versions = NN_VERSIONS
 
     # Пропускаем версии, для которых нет скрипта
     def exists(v: str) -> bool:
@@ -158,11 +184,13 @@ def main() -> None:
 
     parallel = [v for v in parallel if exists(v)]
     sequential = [v for v in sequential if exists(v)]
+    nn_versions = [v for v in nn_versions if exists(v)]
 
     print(f"\n{'#' * 60}")
     print(f"  ФАЗА 2: обучение моделей")
     print(f"  Параллельно: {parallel}")
-    print(f"  Последовательно: {sequential}")
+    print(f"  Последовательно (ML): {sequential}")
+    print(f"  Последовательно (NN): {nn_versions}")
     print(f"{'#' * 60}")
 
     t_start = time.perf_counter()
@@ -170,6 +198,10 @@ def main() -> None:
     run_parallel_block(parallel, plots)
 
     for version in sequential:
+        run_seq(version, plots)
+
+    # NN-версии запускаются строго последовательно: каждая занимает все ядра через joblib
+    for version in nn_versions:
         run_seq(version, plots)
 
     elapsed_total = time.perf_counter() - t_start

@@ -1,0 +1,15 @@
+feature_set,target,mean_pred_mae,fw_mae,raw_mae,kalman_ref_mae,gap_raw_vs_fw,verdict,stability_raw,stability_fw
+BodyComp,lt2,3.7881,4.58,5.4124,5.3821,0.8324,⚠ sequential хуже FirstWindow (нет онлайн-ценности),310.2,142.9
+EMG+BC,lt2,3.7881,5.4349,3.2043,3.0748,-2.2306,✓ sequential значимо лучше FirstWindow,143.5,131.2
+EMG+NIRS+BC,lt2,3.7881,5.0343,2.8329,2.7302,-2.2014,✓ sequential значимо лучше FirstWindow,131.2,113.8
+EMG+NIRS+HRV+BC,lt2,3.7881,4.387,1.9423,1.9013,-2.4447,✓ sequential значимо лучше FirstWindow,85.4,146.9
+EMG,lt2,3.7881,5.4035,3.3244,3.1979,-2.0791,✓ sequential значимо лучше FirstWindow,143.5,127.1
+EMG+NIRS,lt2,3.7881,4.9802,3.2492,3.1172,-1.731,✓ sequential значимо лучше FirstWindow,137.0,109.1
+EMG+NIRS+HRV,lt2,3.7881,4.3868,1.9918,1.8586,-2.395,✓ sequential значимо лучше FirstWindow,92.1,119.2
+BodyComp,lt1,4.2506,4.1469,5.4972,5.4665,1.3503,⚠ sequential хуже FirstWindow (нет онлайн-ценности),330.4,141.9
+EMG+BC,lt1,4.2506,4.1367,2.9794,2.7194,-1.1573,✓ sequential значимо лучше FirstWindow,157.4,160.6
+EMG+NIRS+BC,lt1,4.2506,3.6633,2.9797,2.8507,-0.6836,✓ sequential значимо лучше FirstWindow,136.6,139.7
+EMG+NIRS+HRV+BC,lt1,4.2506,4.5449,2.1464,2.0864,-2.3985,✓ sequential значимо лучше FirstWindow,95.4,177.2
+EMG,lt1,4.2506,4.2619,3.0467,2.8957,-1.2152,✓ sequential значимо лучше FirstWindow,161.8,145.9
+EMG+NIRS,lt1,4.2506,4.2051,2.8971,2.7499,-1.308,✓ sequential значимо лучше FirstWindow,144.3,145.7
+EMG+NIRS+HRV,lt1,4.2506,4.8359,2.3107,2.2774,-2.5252,✓ sequential значимо лучше FirstWindow,108.4,201.0

@@ -1,0 +1,3 @@
+feature_set,target,alpha_sel,model,n_subjects,n_features_in,avg_selected,raw_mae_min,kalman_mae_min,r2,rho,sec
+EMG+NIRS,lt2,0.05,"EN(α=1.0,l1=0.2)",14,97,95.1,3.2491,3.1188,0.609,0.803,5.3
+EMG+NIRS+HRV,lt2,0.05,"EN(α=0.1,l1=0.5)",14,107,101.3,1.9934,1.8593,0.858,0.929,5.1
