@@ -49,7 +49,6 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 import numpy as np
 import pandas as pd
-import shap
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -271,6 +270,7 @@ def get_feature_cols(df: pd.DataFrame, feature_set: str) -> list[str]:
     sets = {
         "EMG":          emg_cols + kin_cols,
         "NIRS":         nirs_cols + run_nirs,
+        "HRV":          hrv_cols,
         "EMG+NIRS":     emg_cols + kin_cols + nirs_cols + run_nirs,
         "EMG+NIRS+HRV": emg_cols + kin_cols + nirs_cols + run_nirs + hrv_cols + inter_cols,
     }
@@ -505,6 +505,7 @@ def compute_shap(df: pd.DataFrame,
         print(f"    [SHAP] Пропуск: {type(global_model).__name__} не линейная.")
         return
 
+    import shap
     explainer  = shap.LinearExplainer(global_model, X_sc, feature_names=feat_cols)
     shap_vals  = explainer(X_sc).values
     mean_abs   = pd.Series(np.abs(shap_vals).mean(0), index=feat_cols).sort_values(ascending=False)
@@ -624,8 +625,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="v0011 — ablation по модальностям")
     p.add_argument("--target", choices=["lt1", "lt2", "both"], default="both")
     p.add_argument("--feature-set", nargs="+",
-                   choices=["EMG", "NIRS", "EMG+NIRS", "EMG+NIRS+HRV"],
-                   default=["EMG", "NIRS", "EMG+NIRS", "EMG+NIRS+HRV"],
+                   choices=["EMG", "NIRS", "HRV", "EMG+NIRS", "EMG+NIRS+HRV"],
+                   default=["EMG", "NIRS", "HRV", "EMG+NIRS", "EMG+NIRS+HRV"],
                    help="Какие наборы признаков прогонять")
     p.add_argument("--no-shap", action="store_true")
     p.add_argument("--sigma-p",   type=float, default=15.0)
@@ -700,6 +701,13 @@ def main() -> None:
                 default=None,
             )
             if best_rec is not None:
+                # Сохраняем предсказания лучшей модели для анализа per-window
+                _loso_best = best_rec.get("_loso")
+                if _loso_best is not None:
+                    fset_tag = fset.replace("+", "_")
+                    np.save(OUT_DIR / f"ypred_{tgt_name}_{fset_tag}.npy", _loso_best["y_pred"])
+                    np.save(OUT_DIR / f"ytrue_{tgt_name}_{fset_tag}.npy", _loso_best["y_true"])
+
                 # Находим factory лучшей модели из зоопарка
                 best_factory = next(
                     (c["factory"] for c in zoo if c["name"] == best_rec["model"]),

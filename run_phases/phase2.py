@@ -50,12 +50,16 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS = _ROOT / "scripts"
 
+# Явное указание скрипта для версий, у которых несколько файлов с одним префиксом
+_SCRIPT_OVERRIDES: dict[str, str] = {
+    "v0011": "v0011_modality_ablation.py",
+}
+
 # Версии, которые могут выполняться параллельно (независимы друг от друга)
 PARALLEL_VERSIONS = ["v0001", "v0002", "v0004", "v0005", "v0006", "v0007", "v0008"]
 
 # Версии, которые должны выполняться последовательно после параллельного блока
-# (v0009 логически после v0008, v0010 после v0009)
-SEQUENTIAL_VERSIONS = ["v0009", "v0010"]
+SEQUENTIAL_VERSIONS = ["v0009", "v0010", "v0011", "v0011a", "v0011b", "v0011c"]
 
 # Нейросетевые версии — каждая сама параллелит через joblib (n_jobs=-1),
 # поэтому запускаем последовательно друг за другом
@@ -91,6 +95,11 @@ def parse_args() -> argparse.Namespace:
 
 def _script(version: str) -> Path:
     """Ищет файл скрипта по префиксу версии."""
+    if version in _SCRIPT_OVERRIDES:
+        path = _SCRIPTS / _SCRIPT_OVERRIDES[version]
+        if not path.exists():
+            raise FileNotFoundError(f"Override-скрипт для {version} не найден: {path}")
+        return path
     matches = sorted(_SCRIPTS.glob(f"{version}_*.py"))
     if not matches:
         raise FileNotFoundError(f"Скрипт для {version} не найден в {_SCRIPTS}")
@@ -101,8 +110,9 @@ def run_version(version: str, plots: bool) -> tuple[str, int, float]:
     """Запускает один версионированный скрипт. Возвращает (version, returncode, elapsed)."""
     script = _script(version)
     cmd = ["uv", "run", "python", str(script)]
-    # NN-скрипты не принимают --no-plots (у них нет matplotlib-графиков в CLI)
-    if not plots and version not in NN_VERSIONS:
+    # Версии без поддержки --no-plots: NN-скрипты и v0011-серия
+    _NO_PLOTS_UNSUPPORTED = set(NN_VERSIONS) | {"v0011", "v0011a", "v0011b", "v0011c"}
+    if not plots and version not in _NO_PLOTS_UNSUPPORTED:
         cmd.append("--no-plots")
     t0 = time.perf_counter()
     result = subprocess.run(cmd, cwd=_ROOT, capture_output=True, text=True)

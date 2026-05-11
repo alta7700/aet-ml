@@ -43,6 +43,16 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+
+def _load_v0011_ref() -> dict:
+    """Загружает референсные MAE v0011 из best_per_set.csv; fallback на N=14 константы."""
+    csv = _ROOT / "results" / "v0011" / "best_per_set.csv"
+    if not csv.exists():
+        return {("lt2", "EMG+NIRS+HRV"): 1.859, ("lt1", "EMG+NIRS+HRV"): 2.277}
+    ref_df = pd.read_csv(csv)
+    return {(row["target"], row["feature_set"]): row["kalman_mae_min"]
+            for _, row in ref_df.iterrows()}
+
 from dataset_pipeline.common import DEFAULT_DATASET_DIR
 from dataset_pipeline.baselines import run_honest_baselines, format_honest_block
 from scripts.v0011_modality_ablation import (
@@ -453,10 +463,7 @@ def main() -> None:
     summary_df.to_csv(OUT_DIR / "summary.csv", index=False)
 
     # Сравнение с v0011
-    v0011_ref = {
-        ("lt2", "EMG+NIRS+HRV"): 1.859,
-        ("lt1", "EMG+NIRS+HRV"): 2.277,
-    }
+    v0011_ref = _load_v0011_ref()
     print("\n" + "=" * 70)
     print("ИТОГИ:")
     for _, row in summary_df.sort_values(["target", "kalman_mae_min"]).iterrows():
