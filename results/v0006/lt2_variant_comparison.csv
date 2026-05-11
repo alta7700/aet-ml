@@ -1,120 +1,134 @@
 config,subject_id,mae_min
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S001,0.6628696841508213
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S002,2.3338555691557477
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S003,4.8420030502679205
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S004,2.056816271561483
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S005,1.6268051821813525
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S006,1.3362627069994644
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S007,1.6067038231737485
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S008,1.4310542539211506
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S009,1.6659928435071427
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S010,2.048845338835951
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S011,1.883533957025628
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S012,3.7399686789725
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S013,2.9545586314949186
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S014,0.9838248401053526
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S015,3.4747864159487474
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S016,3.2952283091161965
-"ref_v004 (hrv_mean_rr_ms, как в v004)",S017,1.7503410333210032
-A: rr_pct+delta вместо rr_ms,S001,0.9197239589955335
-A: rr_pct+delta вместо rr_ms,S002,2.499103965804623
-A: rr_pct+delta вместо rr_ms,S003,3.744423226822069
-A: rr_pct+delta вместо rr_ms,S004,1.1907706340039796
-A: rr_pct+delta вместо rr_ms,S005,5.498750495351314
-A: rr_pct+delta вместо rr_ms,S006,1.9709459501975848
-A: rr_pct+delta вместо rr_ms,S007,3.289193950398894
-A: rr_pct+delta вместо rr_ms,S008,2.2096087625173926
-A: rr_pct+delta вместо rr_ms,S009,6.019530997147724
-A: rr_pct+delta вместо rr_ms,S010,2.9557054011885895
-A: rr_pct+delta вместо rr_ms,S011,1.707059233846337
-A: rr_pct+delta вместо rr_ms,S012,8.863341873523677
-A: rr_pct+delta вместо rr_ms,S013,2.2670003743070364
-A: rr_pct+delta вместо rr_ms,S014,1.0802471617771614
-A: rr_pct+delta вместо rr_ms,S015,5.934619809947702
-A: rr_pct+delta вместо rr_ms,S016,2.613230043150458
-A: rr_pct+delta вместо rr_ms,S017,1.814252248251917
-B: все HRV→pct + smo2_delta,S001,3.3691234887793624
-B: все HRV→pct + smo2_delta,S002,5.969116627590282
-B: все HRV→pct + smo2_delta,S003,2.88981609610107
-B: все HRV→pct + smo2_delta,S004,0.9649588530523173
-B: все HRV→pct + smo2_delta,S005,4.47085899515538
-B: все HRV→pct + smo2_delta,S006,2.448450925999667
-B: все HRV→pct + smo2_delta,S007,1.4612956714207392
-B: все HRV→pct + smo2_delta,S008,2.4126805101260773
-B: все HRV→pct + smo2_delta,S009,6.1793063692339105
-B: все HRV→pct + smo2_delta,S010,2.394613449364523
-B: все HRV→pct + smo2_delta,S011,3.6191086182884757
-B: все HRV→pct + smo2_delta,S012,6.298839939512175
-B: все HRV→pct + smo2_delta,S013,2.724858266700885
-B: все HRV→pct + smo2_delta,S014,1.1295377233110098
-B: все HRV→pct + smo2_delta,S015,3.6769831389989855
-B: все HRV→pct + smo2_delta,S016,0.995941827236059
-B: все HRV→pct + smo2_delta,S017,2.2694119767057814
-B2: все HRV→pct+delta + smo2_delta,S001,2.2147505694460623
-B2: все HRV→pct+delta + smo2_delta,S002,5.19994655968875
-B2: все HRV→pct+delta + smo2_delta,S003,2.405325624095575
-B2: все HRV→pct+delta + smo2_delta,S004,1.2178417757243567
-B2: все HRV→pct+delta + smo2_delta,S005,4.376580384785152
-B2: все HRV→pct+delta + smo2_delta,S006,2.594325270676947
-B2: все HRV→pct+delta + smo2_delta,S007,1.3314132952397153
-B2: все HRV→pct+delta + smo2_delta,S008,2.246526295165661
-B2: все HRV→pct+delta + smo2_delta,S009,7.477669342447532
-B2: все HRV→pct+delta + smo2_delta,S010,2.036758496162308
-B2: все HRV→pct+delta + smo2_delta,S011,3.853857209355991
-B2: все HRV→pct+delta + smo2_delta,S012,7.412596778638133
-B2: все HRV→pct+delta + smo2_delta,S013,3.5148622540057763
-B2: все HRV→pct+delta + smo2_delta,S014,0.7804770661367139
-B2: все HRV→pct+delta + smo2_delta,S015,4.919456781787249
-B2: все HRV→pct+delta + smo2_delta,S016,1.4250723152946982
-B2: все HRV→pct+delta + smo2_delta,S017,1.6716615412874616
-C: B + slope,S001,3.369318264628375
-C: B + slope,S002,5.969507107191118
-C: B + slope,S003,2.897621838871508
-C: B + slope,S004,0.9654072715454537
-C: B + slope,S005,4.489122086786057
-C: B + slope,S006,2.4490879176134737
-C: B + slope,S007,1.4576772221647945
-C: B + slope,S008,2.4130990822158993
-C: B + slope,S009,6.178807862054488
-C: B + slope,S010,2.392745417351785
-C: B + slope,S011,3.6202182901306883
-C: B + slope,S012,6.300919990024397
-C: B + slope,S013,2.724868706297824
-C: B + slope,S014,1.1295224448160026
-C: B + slope,S015,3.6830246006722236
-C: B + slope,S016,1.0046468001940179
-C: B + slope,S017,2.270180433804525
-D: A + slope,S001,0.9139908146014128
-D: A + slope,S002,2.49778777044993
-D: A + slope,S003,3.7496712546982716
-D: A + slope,S004,1.1928769267809283
-D: A + slope,S005,5.519338223670412
-D: A + slope,S006,1.971264102720272
-D: A + slope,S007,3.2811735338912755
-D: A + slope,S008,2.1982700879958035
-D: A + slope,S009,6.021336070299609
-D: A + slope,S010,2.9510218619029875
-D: A + slope,S011,1.715623372590264
-D: A + slope,S012,8.901051261057397
-D: A + slope,S013,2.2693491051547254
-D: A + slope,S014,1.071381194390648
-D: A + slope,S015,5.9440012549720675
-D: A + slope,S016,2.6322621400371293
-D: A + slope,S017,1.8029671460906065
-E: только pct+scale-free (нет абс. NIRS),S001,1.323498308969147
-E: только pct+scale-free (нет абс. NIRS),S002,2.053081242942313
-E: только pct+scale-free (нет абс. NIRS),S003,2.8512261550421423
-E: только pct+scale-free (нет абс. NIRS),S004,1.0449967415964587
-E: только pct+scale-free (нет абс. NIRS),S005,4.600368938139715
-E: только pct+scale-free (нет абс. NIRS),S006,3.0567220310560215
-E: только pct+scale-free (нет абс. NIRS),S007,1.6119808616620337
-E: только pct+scale-free (нет абс. NIRS),S008,1.4107711815963917
-E: только pct+scale-free (нет абс. NIRS),S009,6.68668572797217
-E: только pct+scale-free (нет абс. NIRS),S010,2.5640538535319326
-E: только pct+scale-free (нет абс. NIRS),S011,2.9300966920516194
-E: только pct+scale-free (нет абс. NIRS),S012,4.549163292948075
-E: только pct+scale-free (нет абс. NIRS),S013,3.1483223040715513
-E: только pct+scale-free (нет абс. NIRS),S014,1.0125596828105836
-E: только pct+scale-free (нет абс. NIRS),S015,5.1543636007605125
-E: только pct+scale-free (нет абс. NIRS),S016,1.5214917957901073
-E: только pct+scale-free (нет абс. NIRS),S017,1.7026713665583588
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S001,0.7511809457834804
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S002,2.622522726563908
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S003,5.306341642310302
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S004,1.7237934324246982
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S005,1.4955572691309273
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S006,1.316517718959775
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S007,2.3144396149809725
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S008,1.5265868958142625
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S009,2.223065817416595
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S010,1.7648981699676063
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S011,1.8917883628402568
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S012,3.4944963289051225
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S013,3.077467935220814
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S014,0.9899271122732982
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S015,3.1477678856975433
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S016,3.1171496315067637
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S017,1.8489582741364146
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S018,4.313901805133877
+"ref_v004 (hrv_mean_rr_ms, как в v004)",S019,1.9446392831919863
+A: rr_pct+delta вместо rr_ms,S001,1.3067314053968075
+A: rr_pct+delta вместо rr_ms,S002,2.8416698502823743
+A: rr_pct+delta вместо rr_ms,S003,5.051865932602914
+A: rr_pct+delta вместо rr_ms,S004,1.2251726497030084
+A: rr_pct+delta вместо rr_ms,S005,6.278898303502069
+A: rr_pct+delta вместо rr_ms,S006,2.1905634965171292
+A: rr_pct+delta вместо rr_ms,S007,3.3154687050439895
+A: rr_pct+delta вместо rr_ms,S008,2.3036855526308417
+A: rr_pct+delta вместо rr_ms,S009,6.224524830703212
+A: rr_pct+delta вместо rr_ms,S010,2.5856766376648457
+A: rr_pct+delta вместо rr_ms,S011,1.6451230802581471
+A: rr_pct+delta вместо rr_ms,S012,9.005753684498368
+A: rr_pct+delta вместо rr_ms,S013,2.1923145874805514
+A: rr_pct+delta вместо rr_ms,S014,1.1616261629170495
+A: rr_pct+delta вместо rr_ms,S015,5.532032544467217
+A: rr_pct+delta вместо rr_ms,S016,2.5176002724315447
+A: rr_pct+delta вместо rr_ms,S017,1.8504803019826086
+A: rr_pct+delta вместо rr_ms,S018,4.250363685844438
+A: rr_pct+delta вместо rr_ms,S019,3.183012659976094
+B: все HRV→pct + smo2_delta,S001,3.3256649963744653
+B: все HRV→pct + smo2_delta,S002,5.61434388611841
+B: все HRV→pct + smo2_delta,S003,1.9105056671701095
+B: все HRV→pct + smo2_delta,S004,0.9304324934350947
+B: все HRV→pct + smo2_delta,S005,4.878049002272841
+B: все HRV→pct + smo2_delta,S006,2.520729737797912
+B: все HRV→pct + smo2_delta,S007,1.3652133901698589
+B: все HRV→pct + smo2_delta,S008,2.111300595040282
+B: все HRV→pct + smo2_delta,S009,6.201747892825351
+B: все HRV→pct + smo2_delta,S010,1.8948751894643643
+B: все HRV→pct + smo2_delta,S011,3.828884984820083
+B: все HRV→pct + smo2_delta,S012,6.417608132227156
+B: все HRV→pct + smo2_delta,S013,2.6664908485519567
+B: все HRV→pct + smo2_delta,S014,1.3175615625713826
+B: все HRV→pct + smo2_delta,S015,3.3122371856795567
+B: все HRV→pct + smo2_delta,S016,0.9881764154545428
+B: все HRV→pct + smo2_delta,S017,2.955448973370615
+B: все HRV→pct + smo2_delta,S018,2.799296464588207
+B: все HRV→pct + smo2_delta,S019,2.0105349541448585
+B2: все HRV→pct+delta + smo2_delta,S001,2.2111187883269565
+B2: все HRV→pct+delta + smo2_delta,S002,4.7765716998379
+B2: все HRV→pct+delta + smo2_delta,S003,1.7824901073093213
+B2: все HRV→pct+delta + smo2_delta,S004,1.0097711287023747
+B2: все HRV→pct+delta + smo2_delta,S005,4.8746590069556435
+B2: все HRV→pct+delta + smo2_delta,S006,2.762890108859645
+B2: все HRV→pct+delta + smo2_delta,S007,1.4769837350552988
+B2: все HRV→pct+delta + smo2_delta,S008,2.1495485830721477
+B2: все HRV→pct+delta + smo2_delta,S009,6.124081803565994
+B2: все HRV→pct+delta + smo2_delta,S010,1.7084998816781387
+B2: все HRV→pct+delta + smo2_delta,S011,4.241121549127326
+B2: все HRV→pct+delta + smo2_delta,S012,7.1976748812667495
+B2: все HRV→pct+delta + smo2_delta,S013,3.4194945765297633
+B2: все HRV→pct+delta + smo2_delta,S014,0.7371352411142217
+B2: все HRV→pct+delta + smo2_delta,S015,4.361859818414107
+B2: все HRV→pct+delta + smo2_delta,S016,1.3639617484322637
+B2: все HRV→pct+delta + smo2_delta,S017,2.175064012882376
+B2: все HRV→pct+delta + smo2_delta,S018,2.4128828163625453
+B2: все HRV→pct+delta + smo2_delta,S019,1.9612017897863976
+C: B + slope,S001,3.326782934382787
+C: B + slope,S002,5.618092880711129
+C: B + slope,S003,1.9174169847009201
+C: B + slope,S004,0.9317960179674079
+C: B + slope,S005,4.900971255562142
+C: B + slope,S006,2.520507939862349
+C: B + slope,S007,1.355249715216008
+C: B + slope,S008,2.113698182410741
+C: B + slope,S009,6.202651215812413
+C: B + slope,S010,1.8974175243990565
+C: B + slope,S011,3.828544245991479
+C: B + slope,S012,6.422205397618092
+C: B + slope,S013,2.6660451867500825
+C: B + slope,S014,1.31409204532387
+C: B + slope,S015,3.320538255021305
+C: B + slope,S016,1.003196655054722
+C: B + slope,S017,2.9524861646422536
+C: B + slope,S018,2.7960940570430535
+C: B + slope,S019,2.0106861576506194
+D: A + slope,S001,1.3034951061088402
+D: A + slope,S002,2.8452453315283064
+D: A + slope,S003,5.054980509544872
+D: A + slope,S004,1.222705320132118
+D: A + slope,S005,6.295616815682012
+D: A + slope,S006,2.1910090347829723
+D: A + slope,S007,3.3093630558050666
+D: A + slope,S008,2.2966739524473883
+D: A + slope,S009,6.2223624503639
+D: A + slope,S010,2.5861102154743105
+D: A + slope,S011,1.6500901578994418
+D: A + slope,S012,9.022362265382109
+D: A + slope,S013,2.1933512148399674
+D: A + slope,S014,1.1557699151678313
+D: A + slope,S015,5.5355070666908235
+D: A + slope,S016,2.5331204974703123
+D: A + slope,S017,1.8424581555091406
+D: A + slope,S018,4.268621745480491
+D: A + slope,S019,3.1849385578827327
+E: только pct+scale-free (нет абс. NIRS),S001,1.4955740595020646
+E: только pct+scale-free (нет абс. NIRS),S002,1.7288608354153898
+E: только pct+scale-free (нет абс. NIRS),S003,2.218392598938617
+E: только pct+scale-free (нет абс. NIRS),S004,1.0713546171418071
+E: только pct+scale-free (нет абс. NIRS),S005,5.060411574183783
+E: только pct+scale-free (нет абс. NIRS),S006,3.33608904533201
+E: только pct+scale-free (нет абс. NIRS),S007,1.643316258300724
+E: только pct+scale-free (нет абс. NIRS),S008,1.2443265706246065
+E: только pct+scale-free (нет абс. NIRS),S009,6.244834607076683
+E: только pct+scale-free (нет абс. NIRS),S010,2.154533518234975
+E: только pct+scale-free (нет абс. NIRS),S011,3.5272967992518085
+E: только pct+scale-free (нет абс. NIRS),S012,3.9373342280362893
+E: только pct+scale-free (нет абс. NIRS),S013,3.1441077308470295
+E: только pct+scale-free (нет абс. NIRS),S014,0.9907605704098064
+E: только pct+scale-free (нет абс. NIRS),S015,4.7837629419741745
+E: только pct+scale-free (нет абс. NIRS),S016,1.4603649959533618
+E: только pct+scale-free (нет абс. NIRS),S017,1.6598080368254597
+E: только pct+scale-free (нет абс. NIRS),S018,1.4945818224758125
+E: только pct+scale-free (нет абс. NIRS),S019,2.6965451025334977

@@ -1,0 +1,11 @@
+model,target,n_subjects,features,raw_mae_min,kalman_mae_min,r2,rho
+MeanPredictor,lt2,19,none,5.3974,5.2064,-0.026,-0.359
+ProtocolRidge(α=1),lt2,19,"elapsed_sec,current_power_w,stage_index",4.3402,4.2535,0.387,0.665
+ProtocolRidge(α=10),lt2,19,"elapsed_sec,current_power_w,stage_index",4.3377,4.2511,0.387,0.664
+ProtocolRidge(α=100),lt2,19,"elapsed_sec,current_power_w,stage_index",4.3242,4.2364,0.386,0.651
+ProtocolRidge(α=1000),lt2,19,"elapsed_sec,current_power_w,stage_index",4.2361,4.1388,0.387,0.64
+MeanPredictor,lt1,14,none,5.4583,5.2932,-0.012,-0.229
+ProtocolRidge(α=1),lt1,14,"elapsed_sec,current_power_w,stage_index",3.7056,3.7318,0.575,0.774
+ProtocolRidge(α=10),lt1,14,"elapsed_sec,current_power_w,stage_index",3.7021,3.7287,0.575,0.773
+ProtocolRidge(α=100),lt1,14,"elapsed_sec,current_power_w,stage_index",3.6882,3.7091,0.574,0.757
+ProtocolRidge(α=1000),lt1,14,"elapsed_sec,current_power_w,stage_index",3.5956,3.5863,0.571,0.747
