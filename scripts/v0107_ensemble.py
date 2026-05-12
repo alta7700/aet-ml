@@ -44,7 +44,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import ElasticNet, Ridge
@@ -72,13 +72,18 @@ from scripts.v0011_modality_ablation import prepare_data, get_feature_cols, kalm
 
 OUT_DIR = _ROOT / "results" / "v0107"
 
+EXCLUDE_ABS = frozenset([
+    "trainred_smo2_mean", "trainred_hhb_mean", "trainred_hbdiff_mean", "trainred_thb_mean",
+    "hrv_mean_rr_ms", "feat_smo2_x_rr",
+])
+
 
 # ─── Конфиг ───────────────────────────────────────────────────────────────────
 
 class Config:
     # TCN параметры (идентичны v0106b)
-    window_step   = 4
-    seq_length    = 12
+    window_step   = 6   # 6 × 5с = 30с, нулевое перекрытие
+    seq_length    = 12  # 12 × 30с = 6 мин контекста
     batch_size    = 16
     num_epochs    = 100
     learning_rate = 0.001
@@ -233,8 +238,12 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     y_pred_lin_te = lin_model.predict(X_te)
 
     # ── TCN с wavelet ─────────────────────────────────────────────────────────
-    train_ds = WaveletSeqDataset(X_tr_all, y_tr_all, config.seq_length,
-                                  config.window_step, config.scales, config.wavelet)
+    _offset_ds = [
+        WaveletSeqDataset(X_tr_all[off:], y_tr_all[off:], config.seq_length,
+                          config.window_step, config.scales, config.wavelet)
+        for off in range(config.window_step)
+    ]
+    train_ds = ConcatDataset([d for d in _offset_ds if len(d) > 0])
     test_ds  = WaveletSeqDataset(X_te, y_te, config.seq_length,
                                   config.window_step, config.scales, config.wavelet)
 
@@ -257,22 +266,18 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
 
     # Предсказания TCN + y_true + Linear на val (для подбора α)
     tcn.eval()
-    val_tcn_list, val_true_list = [], []
+    val_tcn_list, val_true_list, val_last_x_list = [], [], []
     with torch.no_grad():
         for x_orig, x_cwt, y_batch in val_loader:
             preds = tcn(x_orig.to(config.device),
                         x_cwt.to(config.device)).cpu().numpy()
             val_tcn_list.append(preds)
             val_true_list.append(y_batch.numpy())
+            # последнее окно каждой последовательности — для linear model
+            val_last_x_list.append(x_orig[:, -1, :].cpu().numpy())
     y_val_tcn  = np.concatenate(val_tcn_list)
     y_val_true = np.concatenate(val_true_list)
-
-    # Linear предсказания для val: последнее raw окно каждой val-последовательности
-    # val_sub.indices — индексы в train_ds; каждая seq i использует train_ds.X[i+seq_len-1]
-    val_seq_idx = list(val_sub.indices)
-    val_last_x  = np.array([train_ds.X[i + config.seq_length - 1]
-                             for i in val_seq_idx
-                             if i + config.seq_length - 1 < len(train_ds.X)])
+    val_last_x = np.concatenate(val_last_x_list) if val_last_x_list else np.empty((0, X_tr_all.shape[1]))
     if len(val_last_x) > 0:
         y_val_lin = lin_model.predict(val_last_x)
     else:
@@ -386,55 +391,70 @@ def main():
         df_prep = prepare_data(df_raw, session_params, tgt_name)
         df_tgt  = df_prep.dropna(subset=[target_col])
 
+        variants = [("with_abs", None, OUT_DIR), ("noabs", EXCLUDE_ABS, OUT_DIR / "noabs")]
         for fset in args.feature_set:
-            feat_cols = get_feature_cols(df_tgt, fset)
-            if not feat_cols: continue
+            feat_cols_full = get_feature_cols(df_tgt, fset)
+            if not feat_cols_full: continue
             n_subj = df_tgt["subject_id"].nunique()
-            print(f"  [{fset} / {tgt_name}]  n={n_subj}, {len(feat_cols)} признаков")
 
-            t0  = time.perf_counter()
-            res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
-            elapsed = time.perf_counter() - t0
-            if "error" in res: print(f"    ❌ {res['error']}"); continue
+            for variant, exclude_set, out_sub in variants:
+                feat_cols = (feat_cols_full if exclude_set is None
+                             else [c for c in feat_cols_full if c not in exclude_set])
+                if not feat_cols: continue
+                out_sub.mkdir(exist_ok=True)
+                print(f"  [{fset} / {tgt_name} / {variant}]  n={n_subj}, {len(feat_cols)} признаков")
 
-            fset_tag = fset.replace("+", "_")
-            np.save(OUT_DIR / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
-            np.save(OUT_DIR / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
+                t0  = time.perf_counter()
+                res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
+                elapsed = time.perf_counter() - t0
+                if "error" in res: print(f"    ❌ {res['error']}"); continue
 
-            best_mae, best_sig, k_maes = float("inf"), sigma_grid[0], {}
-            for sigma in sigma_grid:
-                y_k  = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
-                mae  = mean_absolute_error(res["y_true"], y_k) / 60.0
-                k_maes[sigma] = round(mae, 4)
-                if mae < best_mae: best_mae, best_sig = mae, sigma
+                fset_tag = fset.replace("+", "_")
+                np.save(out_sub / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
+                np.save(out_sub / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
 
-            records.append({
-                "feature_set": fset, "target": tgt_name,
-                "n_subjects": n_subj, "n_features": len(feat_cols),
-                "raw_ensemble_mae":  round(res["raw_mae_min"], 4),
-                "raw_tcn_mae":       round(res["raw_mae_tcn_min"], 4),
-                "raw_lin_mae":       round(res["raw_mae_lin_min"], 4),
-                "kalman_mae_min":    round(best_mae, 4),
-                "best_sigma_obs":    best_sig,
-                "mean_alpha":        round(res["mean_alpha"], 3),
-                "r2": round(res["r2"], 3), "rho": round(res["rho"], 3),
-                "sec": round(elapsed, 1),
-            })
-            print(f"    ens_raw={res['raw_mae_min']:.3f}  tcn={res['raw_mae_tcn_min']:.3f}"
-                  f"  lin={res['raw_mae_lin_min']:.3f}  α={res['mean_alpha']:.2f}")
-            print(f"    kalman_best={best_mae:.3f} (sigma={best_sig})  ({elapsed:.1f}s)")
+                best_mae, best_sig, k_maes = float("inf"), sigma_grid[0], {}
+                for sigma in sigma_grid:
+                    y_k  = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
+                    mae  = mean_absolute_error(res["y_true"], y_k) / 60.0
+                    k_maes[sigma] = round(mae, 4)
+                    if mae < best_mae: best_mae, best_sig = mae, sigma
+
+                records.append({
+                    "variant": variant,
+                    "feature_set": fset, "target": tgt_name,
+                    "n_subjects": n_subj, "n_features": len(feat_cols),
+                    "raw_ensemble_mae":  round(res["raw_mae_min"], 4),
+                    "raw_tcn_mae":       round(res["raw_mae_tcn_min"], 4),
+                    "raw_lin_mae":       round(res["raw_mae_lin_min"], 4),
+                    "kalman_mae_min":    round(best_mae, 4),
+                    "best_sigma_obs":    best_sig,
+                    "mean_alpha":        round(res["mean_alpha"], 3),
+                    "r2": round(res["r2"], 3), "rho": round(res["rho"], 3),
+                    "sec": round(elapsed, 1),
+                })
+                print(f"    ens_raw={res['raw_mae_min']:.3f}  tcn={res['raw_mae_tcn_min']:.3f}"
+                      f"  lin={res['raw_mae_lin_min']:.3f}  α={res['mean_alpha']:.2f}")
+                print(f"    kalman_best={best_mae:.3f} (sigma={best_sig})  ({elapsed:.1f}s)")
 
     df_out = pd.DataFrame(records)
     df_out.to_csv(OUT_DIR / "summary.csv", index=False)
+    df_noabs = df_out[df_out["variant"] == "noabs"]
+    if not df_noabs.empty:
+        df_noabs.to_csv(OUT_DIR / "noabs" / "summary.csv", index=False)
 
     print("\n" + "="*70 + "\nИТОГИ ENSEMBLE:")
-    for _, r in df_out.sort_values(["target","kalman_mae_min"]).iterrows():
-        ref11   = v0011_ref.get((r["target"], r["feature_set"]))
-        ref06b  = v0106b_ref.get((r["target"], r["feature_set"]))
-        d11  = f"  Δ={r['kalman_mae_min']-ref11:+.3f} vs v0011"  if ref11  else ""
-        d06b = f"  Δ={r['kalman_mae_min']-ref06b:+.3f} vs v0106b" if ref06b else ""
-        print(f"  {r['target'].upper()} / {r['feature_set']:<16s}  "
-              f"ens={r['kalman_mae_min']:.3f}{d11}{d06b}")
+    for variant in ["with_abs", "noabs"]:
+        sub = df_out[df_out["variant"] == variant]
+        if sub.empty: continue
+        print(f"\n  [{variant}]")
+        for _, r in sub.sort_values(["target","kalman_mae_min"]).iterrows():
+            ref11   = v0011_ref.get((r["target"], r["feature_set"]))
+            ref06b  = v0106b_ref.get((r["target"], r["feature_set"]))
+            d11  = f"  Δ={r['kalman_mae_min']-ref11:+.3f} vs v0011"  if ref11  else ""
+            d06b = f"  Δ={r['kalman_mae_min']-ref06b:+.3f} vs v0106b" if ref06b else ""
+            print(f"    {r['target'].upper()} / {r['feature_set']:<16s}  "
+                  f"ens={r['kalman_mae_min']:.3f}{d11}{d06b}")
     print(f"\n✅ Готово: {OUT_DIR.resolve()}")
 
 

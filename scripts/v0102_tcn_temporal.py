@@ -32,7 +32,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -62,6 +62,11 @@ from scripts.v0011_modality_ablation import (
 )
 
 OUT_DIR = _ROOT / "results" / "v0102"
+
+EXCLUDE_ABS = frozenset([
+    "trainred_smo2_mean", "trainred_hhb_mean", "trainred_hbdiff_mean", "trainred_thb_mean",
+    "hrv_mean_rr_ms", "feat_smo2_x_rr",
+])
 
 
 # ─── Конфиг ───────────────────────────────────────────────────────────────────
@@ -255,7 +260,11 @@ def _run_one_loso_fold(test_subject_id,
     y_tr = train[target_col].values
     y_te = test[target_col].values
 
-    train_ds = NonOverlapWindowDataset(X_tr, y_tr, config.seq_length, config.window_step)
+    _offset_ds = [
+        NonOverlapWindowDataset(X_tr[off:], y_tr[off:], config.seq_length, config.window_step)
+        for off in range(config.window_step)
+    ]
+    train_ds = ConcatDataset([d for d in _offset_ds if len(d) > 0])
     test_ds  = NonOverlapWindowDataset(X_te, y_te, config.seq_length, config.window_step)
 
     if len(train_ds) < 4 or len(test_ds) == 0:
@@ -408,69 +417,77 @@ def main() -> None:
         target_col = tgt_cfg["col"]
         df_tgt = df_prep.dropna(subset=[target_col])
 
+        variants = [("with_abs", None, OUT_DIR), ("noabs", EXCLUDE_ABS, OUT_DIR / "noabs")]
         for fset in args.feature_set:
-            feat_cols = get_feature_cols(df_tgt, fset)
-            if not feat_cols:
+            feat_cols_full = get_feature_cols(df_tgt, fset)
+            if not feat_cols_full:
                 continue
-
             n_subj = df_tgt["subject_id"].nunique()
-            print(f"  [{fset} / {tgt_name}]  n={n_subj}, {len(feat_cols)} признаков")
 
-            t0 = time.perf_counter()
-            res = loso_tcn(df_tgt, feat_cols, target_col, config, n_jobs=args.n_jobs)
-            elapsed = time.perf_counter() - t0
+            for variant, exclude_set, out_sub in variants:
+                feat_cols = (feat_cols_full if exclude_set is None
+                             else [c for c in feat_cols_full if c not in exclude_set])
+                if not feat_cols: continue
+                out_sub.mkdir(exist_ok=True)
+                print(f"  [{fset} / {tgt_name} / {variant}]  n={n_subj}, {len(feat_cols)} признаков")
 
-            if "error" in res:
-                print(f"    ❌ {res['error']}")
-                continue
+                t0 = time.perf_counter()
+                res = loso_tcn(df_tgt, feat_cols, target_col, config, n_jobs=args.n_jobs)
+                elapsed = time.perf_counter() - t0
+                if "error" in res: print(f"    ❌ {res['error']}"); continue
 
-            # Grid search по sigma_obs — оптимальный Kalman для TCN может отличаться от v0011
-            sigma_grid = [30.0, 50.0, 75.0, 150.0]
-            best_kalman_mae = float("inf")
-            best_sigma = sigma_grid[0]
-            kalman_maes = {}
-            for sigma in sigma_grid:
-                y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
-                mae_k = mean_absolute_error(res["y_true"], y_k) / 60.0
-                kalman_maes[sigma] = round(mae_k, 4)
-                if mae_k < best_kalman_mae:
-                    best_kalman_mae = mae_k
-                    best_sigma = sigma
+                sigma_grid = [30.0, 50.0, 75.0, 150.0]
+                best_kalman_mae = float("inf")
+                best_sigma = sigma_grid[0]
+                kalman_maes = {}
+                for sigma in sigma_grid:
+                    y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
+                    mae_k = mean_absolute_error(res["y_true"], y_k) / 60.0
+                    kalman_maes[sigma] = round(mae_k, 4)
+                    if mae_k < best_kalman_mae:
+                        best_kalman_mae = mae_k
+                        best_sigma = sigma
 
-            all_records.append({
-                "feature_set": fset,
-                "target": tgt_name,
-                "n_subjects": n_subj,
-                "n_features": len(feat_cols),
-                "raw_mae_min": round(res["raw_mae_min"], 4),
-                "kalman_mae_min": round(best_kalman_mae, 4),
-                "best_sigma_obs": best_sigma,
-                "kalman_30": kalman_maes.get(30.0),
-                "kalman_50": kalman_maes.get(50.0),
-                "kalman_75": kalman_maes.get(75.0),
-                "kalman_150": kalman_maes.get(150.0),
-                "r2": round(res["r2"], 3),
-                "rho": round(res["rho"], 3),
-                "sec": round(elapsed, 1),
-            })
+                all_records.append({
+                    "variant":       variant,
+                    "feature_set":   fset,
+                    "target":        tgt_name,
+                    "n_subjects":    n_subj,
+                    "n_features":    len(feat_cols),
+                    "raw_mae_min":   round(res["raw_mae_min"], 4),
+                    "kalman_mae_min": round(best_kalman_mae, 4),
+                    "best_sigma_obs": best_sigma,
+                    "kalman_30":     kalman_maes.get(30.0),
+                    "kalman_50":     kalman_maes.get(50.0),
+                    "kalman_75":     kalman_maes.get(75.0),
+                    "kalman_150":    kalman_maes.get(150.0),
+                    "r2":            round(res["r2"], 3),
+                    "rho":           round(res["rho"], 3),
+                    "sec":           round(elapsed, 1),
+                })
 
-            print(f"    raw={res['raw_mae_min']:.3f}  "
-                  f"kalman_best={best_kalman_mae:.3f} (sigma={best_sigma})"
-                  f"  ({elapsed:.1f}s)")
-            print(f"    sigma grid: {kalman_maes}")
+                print(f"    raw={res['raw_mae_min']:.3f}  "
+                      f"kalman_best={best_kalman_mae:.3f} (sigma={best_sigma})"
+                      f"  ({elapsed:.1f}s)")
 
     summary_df = pd.DataFrame(all_records)
     summary_df.to_csv(OUT_DIR / "summary.csv", index=False)
+    df_noabs = summary_df[summary_df["variant"] == "noabs"]
+    if not df_noabs.empty:
+        df_noabs.to_csv(OUT_DIR / "noabs" / "summary.csv", index=False)
 
-    # Сравнение с v0011
     v0011_ref = _load_v0011_ref()
     print("\n" + "=" * 70)
     print("ИТОГИ:")
-    for _, row in summary_df.sort_values(["target", "kalman_mae_min"]).iterrows():
-        ref = v0011_ref.get((row["target"], row["feature_set"]))
-        delta = f"  Δ={row['kalman_mae_min']-ref:+.3f} vs v0011" if ref else ""
-        print(f"  {row['target'].upper()} / {row['feature_set']:<16s}  "
-              f"kalman={row['kalman_mae_min']:.3f}{delta}")
+    for variant in ["with_abs", "noabs"]:
+        sub = summary_df[summary_df["variant"] == variant]
+        if sub.empty: continue
+        print(f"\n  [{variant}]")
+        for _, row in sub.sort_values(["target", "kalman_mae_min"]).iterrows():
+            ref = v0011_ref.get((row["target"], row["feature_set"]))
+            delta = f"  Δ={row['kalman_mae_min']-ref:+.3f} vs v0011" if ref else ""
+            print(f"    {row['target'].upper()} / {row['feature_set']:<16s}  "
+                  f"kalman={row['kalman_mae_min']:.3f}{delta}")
 
     print(f"\n✅ Готово: {OUT_DIR.resolve()}")
 

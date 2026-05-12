@@ -39,7 +39,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, ConcatDataset
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error, r2_score
@@ -66,12 +66,18 @@ from scripts.v0011_modality_ablation import prepare_data, get_feature_cols, kalm
 
 OUT_DIR = _ROOT / "results" / "v0106b"
 
+# Абсолютные уровни, монотонно меняющиеся по ходу теста (аналог v0014b)
+EXCLUDE_ABS = frozenset([
+    "trainred_smo2_mean", "trainred_hhb_mean", "trainred_hbdiff_mean", "trainred_thb_mean",
+    "hrv_mean_rr_ms", "feat_smo2_x_rr",
+])
+
 
 # ─── Конфиг ───────────────────────────────────────────────────────────────────
 
 class Config:
-    window_step   = 4
-    seq_length    = 12
+    window_step   = 6   # 6 × 5с = 30с между окнами = нулевое перекрытие
+    seq_length    = 12  # 12 × 30с = 6 мин контекста
     batch_size    = 16
     num_epochs    = 100
     learning_rate = 0.001
@@ -233,8 +239,14 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     X_te = sc.transform(imp.transform(test[feat_cols].values))
     y_tr = train[target_col].values; y_te = test[target_col].values
 
-    train_ds = WaveletSeqDataset(X_tr, y_tr, config.seq_length, config.window_step,
-                                  config.scales, config.wavelet)
+    # Обучающий датасет: 6 смещений → независимые окна, ~3.5× больше последовательностей
+    _offset_ds = [
+        WaveletSeqDataset(X_tr[off:], y_tr[off:], config.seq_length, config.window_step,
+                          config.scales, config.wavelet)
+        for off in range(config.window_step)
+    ]
+    train_ds = ConcatDataset([d for d in _offset_ds if len(d) > 0])
+    # Тестовый датасет: только offset=0, предсказания каждые 30с
     test_ds  = WaveletSeqDataset(X_te, y_te, config.seq_length, config.window_step,
                                   config.scales, config.wavelet)
 
@@ -328,59 +340,78 @@ def main():
     v0011_ref  = _load_v0011_ref()
     records = []
 
+    variants = [
+        ("with_abs", None,        OUT_DIR),
+        ("noabs",    EXCLUDE_ABS, OUT_DIR / "noabs"),
+    ]
+
     for tgt_name, target_col in targets.items():
         print(f"\n{'═'*70}\nТАРГЕТ: {tgt_name.upper()}\n{'═'*70}\n")
         df_prep = prepare_data(df_raw, session_params, tgt_name)
         df_tgt  = df_prep.dropna(subset=[target_col])
 
         for fset in args.feature_set:
-            feat_cols = get_feature_cols(df_tgt, fset)
-            if not feat_cols: continue
+            feat_cols_full = get_feature_cols(df_tgt, fset)
+            if not feat_cols_full: continue
             n_subj = df_tgt["subject_id"].nunique()
-            print(f"  [{fset} / {tgt_name}]  n={n_subj}, {len(feat_cols)} признаков")
 
-            t0  = time.perf_counter()
-            res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
-            elapsed = time.perf_counter() - t0
-            if "error" in res: print(f"    ❌ {res['error']}"); continue
+            for variant, exclude_set, out_sub in variants:
+                feat_cols = (feat_cols_full if exclude_set is None
+                             else [c for c in feat_cols_full if c not in exclude_set])
+                if not feat_cols:
+                    continue
+                out_sub.mkdir(exist_ok=True)
+                print(f"  [{fset} / {tgt_name} / {variant}]  n={n_subj}, {len(feat_cols)} признаков")
 
-            # Сохраняем предсказания для последующей настройки sigma без переобучения
-            fset_tag = fset.replace("+", "_")
-            np.save(OUT_DIR / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
-            np.save(OUT_DIR / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
+                t0  = time.perf_counter()
+                res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
+                elapsed = time.perf_counter() - t0
+                if "error" in res: print(f"    ❌ {res['error']}"); continue
 
-            best_mae, best_sig, k_maes = float("inf"), sigma_grid[0], {}
-            for sigma in sigma_grid:
-                y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
-                mae = mean_absolute_error(res["y_true"], y_k) / 60.0
-                k_maes[sigma] = round(mae, 4)
-                if mae < best_mae: best_mae, best_sig = mae, sigma
+                fset_tag = fset.replace("+", "_")
+                np.save(out_sub / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
+                np.save(out_sub / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
 
-            records.append({
-                "feature_set": fset, "target": tgt_name,
-                "n_subjects": n_subj, "n_features": len(feat_cols),
-                "raw_mae_min": round(res["raw_mae_min"], 4),
-                "kalman_mae_min": round(best_mae, 4), "best_sigma_obs": best_sig,
-                "kalman_5": k_maes.get(5.0), "kalman_10": k_maes.get(10.0),
-                "kalman_15": k_maes.get(15.0), "kalman_20": k_maes.get(20.0),
-                "kalman_30": k_maes.get(30.0), "kalman_50": k_maes.get(50.0),
-                "kalman_75": k_maes.get(75.0), "kalman_150": k_maes.get(150.0),
-                "r2": round(res["r2"], 3), "rho": round(res["rho"], 3),
-                "sec": round(elapsed, 1),
-            })
-            print(f"    raw={res['raw_mae_min']:.3f}  "
-                  f"kalman_best={best_mae:.3f} (sigma={best_sig})  ({elapsed:.1f}s)")
-            print(f"    sigma grid: {k_maes}")
+                best_mae, best_sig, k_maes = float("inf"), sigma_grid[0], {}
+                for sigma in sigma_grid:
+                    y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
+                    mae = mean_absolute_error(res["y_true"], y_k) / 60.0
+                    k_maes[sigma] = round(mae, 4)
+                    if mae < best_mae: best_mae, best_sig = mae, sigma
+
+                records.append({
+                    "variant": variant,
+                    "feature_set": fset, "target": tgt_name,
+                    "n_subjects": n_subj, "n_features": len(feat_cols),
+                    "raw_mae_min": round(res["raw_mae_min"], 4),
+                    "kalman_mae_min": round(best_mae, 4), "best_sigma_obs": best_sig,
+                    "kalman_5": k_maes.get(5.0), "kalman_10": k_maes.get(10.0),
+                    "kalman_15": k_maes.get(15.0), "kalman_20": k_maes.get(20.0),
+                    "kalman_30": k_maes.get(30.0), "kalman_50": k_maes.get(50.0),
+                    "kalman_75": k_maes.get(75.0), "kalman_150": k_maes.get(150.0),
+                    "r2": round(res["r2"], 3), "rho": round(res["rho"], 3),
+                    "sec": round(elapsed, 1),
+                })
+                print(f"    raw={res['raw_mae_min']:.3f}  "
+                      f"kalman_best={best_mae:.3f} (sigma={best_sig})  ({elapsed:.1f}s)")
 
     df_out = pd.DataFrame(records)
     df_out.to_csv(OUT_DIR / "summary.csv", index=False)
+    # Отдельный CSV для noabs
+    df_noabs = df_out[df_out["variant"] == "noabs"]
+    if not df_noabs.empty:
+        df_noabs.to_csv(OUT_DIR / "noabs" / "summary.csv", index=False)
 
     print("\n" + "="*70 + "\nИТОГИ:")
-    for _, r in df_out.sort_values(["target","kalman_mae_min"]).iterrows():
-        ref   = v0011_ref.get((r["target"], r["feature_set"]))
-        delta = f"  Δ={r['kalman_mae_min']-ref:+.3f} vs v0011" if ref else ""
-        print(f"  {r['target'].upper()} / {r['feature_set']:<16s}  "
-              f"kalman={r['kalman_mae_min']:.3f}{delta}")
+    for variant in ["with_abs", "noabs"]:
+        sub = df_out[df_out["variant"] == variant]
+        if sub.empty: continue
+        print(f"\n  [{variant}]")
+        for _, r in sub.sort_values(["target","kalman_mae_min"]).iterrows():
+            ref   = v0011_ref.get((r["target"], r["feature_set"]))
+            delta = f"  Δ={r['kalman_mae_min']-ref:+.3f} vs v0011" if ref else ""
+            print(f"    {r['target'].upper()} / {r['feature_set']:<16s}  "
+                  f"kalman={r['kalman_mae_min']:.3f}{delta}")
     print(f"\n✅ Готово: {OUT_DIR.resolve()}")
 
 
