@@ -342,11 +342,14 @@ def loso_wavelet(df: pd.DataFrame,
         for s in subjects
     )
 
-    all_pred, all_true = [], []
+    all_pred, all_true, subj_rows = [], [], []
     for rec in records:
         if "error" not in rec:
             all_pred.append(rec["y_pred"])
             all_true.append(rec["y_true"])
+            mae_s = mean_absolute_error(rec["y_true"], rec["y_pred"]) / 60.0
+            r2_s  = r2_score(rec["y_true"], rec["y_pred"]) if len(rec["y_true"]) > 1 else float("nan")
+            subj_rows.append({"subject_id": rec["fold"], "mae_min": round(mae_s, 4), "r2": round(r2_s, 3)})
 
     if not all_pred:
         return {"error": "Нет данных"}
@@ -360,6 +363,7 @@ def loso_wavelet(df: pd.DataFrame,
         "raw_mae_min": mean_absolute_error(y_true, y_pred) / 60.0,
         "r2": r2_score(y_true, y_pred),
         "rho": float(spearmanr(y_true, y_pred).statistic),
+        "per_subject": subj_rows,
     }
 
 
@@ -385,6 +389,17 @@ def main() -> None:
     config.seq_length  = args.seq_len
     config.window_step = args.window_step
 
+    # Автовыбор устройства: CUDA → GPU + последовательно, иначе CPU + параллельно
+    if torch.cuda.is_available():
+        config.device = "cuda"
+        config.batch_size = 256
+        n_jobs = 1
+        print(f"[GPU] CUDA: {torch.cuda.get_device_name(0)}, n_jobs=1")
+    else:
+        config.device = "cpu"
+        n_jobs = args.n_jobs
+        print(f"[CPU] CUDA недоступна, n_jobs={n_jobs}")
+
     print("=" * 70)
     print("v0103 — WAVELET-CNN (CWT скалограммы + 2D CNN)")
     print("=" * 70)
@@ -392,7 +407,7 @@ def main() -> None:
     print(f"window_step={config.window_step} (каждые {config.window_step*5} сек)")
     print(f"seq_length={config.seq_length}  ({config.seq_length*config.window_step*5} сек истории)")
     print(f"feat_embed={config.feat_embed}, cnn_channels={config.cnn_channels}")
-    print(f"n_jobs={args.n_jobs}\n")
+    print(f"device={config.device}, n_jobs={n_jobs}\n")
 
     df_raw = pd.read_parquet(args.dataset)
     sp_path = DEFAULT_DATASET_DIR / "session_params.parquet"
@@ -407,7 +422,7 @@ def main() -> None:
     if args.target != "both":
         targets_cfg = {k: v for k, v in targets_cfg.items() if k == args.target}
 
-    all_records = []
+    all_records, all_subj_records = [], []
     sigma_grid = [30.0, 50.0, 75.0, 150.0]
 
     for tgt_name, tgt_cfg in targets_cfg.items():
@@ -435,9 +450,11 @@ def main() -> None:
 
                 t0  = time.perf_counter()
                 res = loso_wavelet(df_tgt, feat_cols, target_col, config,
-                                   n_jobs=args.n_jobs)
+                                   n_jobs=n_jobs)
                 elapsed = time.perf_counter() - t0
                 if "error" in res: print(f"    ❌ {res['error']}"); continue
+                for row in res.get("per_subject", []):
+                    all_subj_records.append({"variant": variant, "feature_set": fset, "target": tgt_name, **row})
 
                 best_kalman_mae = float("inf")
                 best_sigma      = sigma_grid[0]
@@ -474,6 +491,7 @@ def main() -> None:
 
     summary_df = pd.DataFrame(all_records)
     summary_df.to_csv(OUT_DIR / "summary.csv", index=False)
+    pd.DataFrame(all_subj_records).to_csv(OUT_DIR / "per_subject.csv", index=False)
     df_noabs = summary_df[summary_df["variant"] == "noabs"]
     if not df_noabs.empty:
         df_noabs.to_csv(OUT_DIR / "noabs" / "summary.csv", index=False)

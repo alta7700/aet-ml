@@ -101,31 +101,61 @@ class Config:
 
 # ─── Dataset (из v0106b) ──────────────────────────────────────────────────────
 
+def _cwt_one_feature(args):
+    """Вычисляет CWT для одного признака — вызывается из пула потоков."""
+    f, col, scales, wavelet = args
+    coeffs, _ = pywt.cwt(col.astype(np.float64), scales, wavelet)
+    return f, np.abs(coeffs).T.astype(np.float32)
+
+
+def _precompute_cwt(X: np.ndarray, scales, wavelet) -> np.ndarray:
+    """Считает CWT для всего X (n_rows, n_features) параллельно по признакам.
+    Использует threading (pywavelets освобождает GIL) → ускорение ~n_cpu раз."""
+    n, n_f, n_sc = len(X), X.shape[1], len(scales)
+    cwt_full = np.zeros((n, n_f, n_sc), dtype=np.float32)
+    if n <= 1:
+        return cwt_full
+    args = [(f, X[:, f], scales, wavelet) for f in range(n_f)]
+    results = Parallel(n_jobs=-1, backend="threading")(
+        delayed(_cwt_one_feature)(a) for a in args)
+    for f, cwt_f in results:
+        cwt_full[:, f, :] = cwt_f
+    return cwt_full
+
+
 class WaveletSeqDataset(Dataset):
-    def __init__(self, X, y, seq_length, window_step, scales, wavelet):
+    def __init__(self, X, y, seq_length, window_step, scales, wavelet,
+                 cwt_cache: np.ndarray = None, device: str = "cpu"):
+        """cwt_cache: предпосчитанный CWT shape=(len(X), n_f, n_sc).
+        device: если 'cuda' — весь датасет живёт на GPU, копий CPU→GPU в цикле нет."""
         ind_idx = np.arange(0, len(X), window_step)
         X_ind = X[ind_idx].astype(np.float32)
         y_ind = y[ind_idx].astype(np.float32)
         self.n = len(X_ind); self.seq_length = seq_length
-        n_f, n_sc = X_ind.shape[1], len(scales)
 
-        cwt_all = np.zeros((self.n, n_f, n_sc), dtype=np.float32)
-        if self.n > 1:
-            for f in range(n_f):
-                coeffs, _ = pywt.cwt(X_ind[:, f].astype(np.float64), scales, wavelet)
-                cwt_all[:, f, :] = np.abs(coeffs).T.astype(np.float32)
+        if cwt_cache is not None:
+            cwt_all = cwt_cache[ind_idx]
+        else:
+            n_f, n_sc = X_ind.shape[1], len(scales)
+            cwt_all = _precompute_cwt(X_ind, scales, wavelet)
 
-        flat = cwt_all.reshape(-1, n_sc)
+        flat = cwt_all.reshape(-1, cwt_all.shape[-1])
         mean_, std_ = flat.mean(0), flat.std(0) + 1e-8
-        self.cwt = ((cwt_all - mean_) / std_).reshape(self.n, n_f * n_sc).astype(np.float32)
-        self.X = X_ind; self.y = y_ind
+        cwt_norm = ((cwt_all - mean_) / std_).reshape(
+            self.n, X_ind.shape[1] * cwt_all.shape[-1]).astype(np.float32)
+
+        # Переносим весь датасет на GPU один раз — в цикле обучения копий нет
+        self.X   = torch.from_numpy(X_ind).to(device)
+        self.cwt = torch.from_numpy(cwt_norm).to(device)
+        self.y   = torch.from_numpy(y_ind).to(device)
 
     def __len__(self): return max(0, self.n - self.seq_length + 1)
 
     def __getitem__(self, idx):
-        x_orig = torch.from_numpy(self.X[idx: idx + self.seq_length])
-        x_cwt  = torch.from_numpy(self.cwt[idx: idx + self.seq_length])
-        y = torch.tensor(self.y[idx + self.seq_length - 1], dtype=torch.float32)
+        # Слайсы уже на нужном устройстве — никаких .to() в цикле обучения
+        x_orig = self.X[idx: idx + self.seq_length]
+        x_cwt  = self.cwt[idx: idx + self.seq_length]
+        y      = self.y[idx + self.seq_length - 1]
         return x_orig, x_cwt, y
 
 
@@ -190,8 +220,7 @@ def _train_tcn(model, train_loader, val_loader, config):
     for _ in range(config.num_epochs):
         model.train()
         for x_orig, x_cwt, y in train_loader:
-            x_orig, x_cwt, y = (x_orig.to(config.device), x_cwt.to(config.device),
-                                 y.to(config.device))
+            # данные уже на GPU (перенесены в датасете) — .to() не нужен
             optimizer.zero_grad()
             loss = criterion(model(x_orig, x_cwt), y)
             loss.backward()
@@ -202,8 +231,6 @@ def _train_tcn(model, train_loader, val_loader, config):
         model.eval(); val_loss = 0.0
         with torch.no_grad():
             for x_orig, x_cwt, y in val_loader:
-                x_orig, x_cwt, y = (x_orig.to(config.device), x_cwt.to(config.device),
-                                     y.to(config.device))
                 val_loss += criterion(model(x_orig, x_cwt), y).item() * len(y)
         val_loss /= max(len(val_loader.dataset), 1)
 
@@ -220,7 +247,8 @@ def _train_tcn(model, train_loader, val_loader, config):
 
 # ─── Один LOSO фолд с ensemble ────────────────────────────────────────────────
 
-def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
+def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
+                       cwt_global=None, cwt_idx_map=None, cwt_feat_cols=None):
     """Обучает TCN + ElasticNet, подбирает α на val, возвращает ensemble pred."""
     train_all = df[df["subject_id"] != test_subject_id].sort_values(
         ["subject_id", "window_start_sec"])
@@ -238,14 +266,34 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     y_pred_lin_te = lin_model.predict(X_te)
 
     # ── TCN с wavelet ─────────────────────────────────────────────────────────
+    dev = config.device
+
+    # CWT: читаем из предрасчитанного кэша если доступен, иначе считаем на лету
+    if cwt_global is not None and cwt_idx_map and cwt_feat_cols:
+        # Выбираем только нужные признаки из кэша (кэш содержит все 137, фолд — подмножество)
+        f_idx = [cwt_feat_cols.index(c) for c in feat_cols if c in cwt_feat_cols]
+        tr_pos = [cwt_idx_map[i] for i in train_all.index if i in cwt_idx_map]
+        te_pos = [cwt_idx_map[i] for i in test.index      if i in cwt_idx_map]
+        if tr_pos and len(f_idx) == len(feat_cols):
+            cwt_tr = cwt_global[np.ix_(tr_pos, f_idx)]   # (n_tr, n_feat, n_scales)
+            cwt_te = cwt_global[np.ix_(te_pos, f_idx)]
+        else:
+            cwt_tr = _precompute_cwt(X_tr_all, config.scales, config.wavelet)
+            cwt_te = _precompute_cwt(X_te,     config.scales, config.wavelet)
+    else:
+        cwt_tr = _precompute_cwt(X_tr_all, config.scales, config.wavelet)
+        cwt_te = _precompute_cwt(X_te,     config.scales, config.wavelet)
+
     _offset_ds = [
         WaveletSeqDataset(X_tr_all[off:], y_tr_all[off:], config.seq_length,
-                          config.window_step, config.scales, config.wavelet)
+                          config.window_step, config.scales, config.wavelet,
+                          cwt_cache=cwt_tr[off:], device=dev)
         for off in range(config.window_step)
     ]
     train_ds = ConcatDataset([d for d in _offset_ds if len(d) > 0])
     test_ds  = WaveletSeqDataset(X_te, y_te, config.seq_length,
-                                  config.window_step, config.scales, config.wavelet)
+                                  config.window_step, config.scales, config.wavelet,
+                                  cwt_cache=cwt_te, device=dev)
 
     if len(train_ds) < 4 or len(test_ds) == 0:
         return {"fold": test_subject_id, "error": "Недостаточно данных"}
@@ -255,7 +303,9 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
         train_ds, [split, len(train_ds) - split],
         generator=torch.Generator().manual_seed(42))
 
-    train_loader = DataLoader(train_sub, batch_size=config.batch_size, shuffle=True)
+    # num_workers=0 обязательно — CUDA-тензоры нельзя передавать через fork
+    train_loader = DataLoader(train_sub, batch_size=config.batch_size,
+                              shuffle=True, num_workers=0)
     val_loader   = DataLoader(val_sub,   batch_size=config.batch_size, shuffle=False)
     test_loader  = DataLoader(test_ds,   batch_size=config.batch_size, shuffle=False)
 
@@ -269,11 +319,10 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     val_tcn_list, val_true_list, val_last_x_list = [], [], []
     with torch.no_grad():
         for x_orig, x_cwt, y_batch in val_loader:
-            preds = tcn(x_orig.to(config.device),
-                        x_cwt.to(config.device)).cpu().numpy()
+            # данные уже на GPU — только .cpu() для numpy-конвертации
+            preds = tcn(x_orig, x_cwt).cpu().numpy()
             val_tcn_list.append(preds)
-            val_true_list.append(y_batch.numpy())
-            # последнее окно каждой последовательности — для linear model
+            val_true_list.append(y_batch.cpu().numpy())
             val_last_x_list.append(x_orig[:, -1, :].cpu().numpy())
     y_val_tcn  = np.concatenate(val_tcn_list)
     y_val_true = np.concatenate(val_true_list)
@@ -297,8 +346,7 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     tcn.eval(); test_preds = []
     with torch.no_grad():
         for x_orig, x_cwt, _ in test_loader:
-            test_preds.append(tcn(x_orig.to(config.device),
-                                   x_cwt.to(config.device)).cpu().numpy())
+            test_preds.append(tcn(x_orig, x_cwt).cpu().numpy())
     y_tcn_sparse = np.concatenate(test_preds)
 
     # Интерполяция TCN предсказаний
@@ -324,12 +372,15 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     }
 
 
-def _loso(df, feat_cols, target_col, config, n_jobs):
+def _loso(df, feat_cols, target_col, config, n_jobs,
+          cwt_global=None, cwt_idx_map=None, cwt_feat_cols=None):
     subjects = sorted(df["subject_id"].unique())
     records  = Parallel(n_jobs=n_jobs, backend="loky", verbose=1)(
-        delayed(_run_one_loso_fold)(s, df, feat_cols, target_col, config)
+        delayed(_run_one_loso_fold)(
+            s, df, feat_cols, target_col, config,
+            cwt_global, cwt_idx_map, cwt_feat_cols)
         for s in subjects)
-    all_ens, all_tcn, all_lin, all_true, alphas = [], [], [], [], []
+    all_ens, all_tcn, all_lin, all_true, alphas, subj_rows = [], [], [], [], [], []
     for rec in records:
         if "error" not in rec:
             all_ens.append(rec["y_pred"])
@@ -337,6 +388,17 @@ def _loso(df, feat_cols, target_col, config, n_jobs):
             all_lin.append(rec["y_pred_lin"])
             all_true.append(rec["y_true"])
             alphas.append(rec["best_alpha"])
+            mae_ens = mean_absolute_error(rec["y_true"], rec["y_pred"]) / 60.0
+            mae_tcn = mean_absolute_error(rec["y_true"], rec["y_pred_tcn"]) / 60.0
+            mae_lin = mean_absolute_error(rec["y_true"], rec["y_pred_lin"]) / 60.0
+            subj_rows.append({
+                "subject_id": rec["fold"],
+                "mae_ens_min": round(mae_ens, 4),
+                "mae_tcn_min": round(mae_tcn, 4),
+                "mae_lin_min": round(mae_lin, 4),
+                "best_alpha":  round(rec["best_alpha"], 3),
+                "best_expert": "tcn" if mae_tcn < mae_lin else "linear",
+            })
     if not all_ens: return {"error": "Нет данных"}
     y_ens  = np.concatenate(all_ens)
     y_tcn  = np.concatenate(all_tcn)
@@ -350,6 +412,7 @@ def _loso(df, feat_cols, target_col, config, n_jobs):
         "mean_alpha": float(np.mean(alphas)),
         "r2": r2_score(y_true, y_ens),
         "rho": float(spearmanr(y_true, y_ens).statistic),
+        "per_subject": subj_rows,
     }
 
 
@@ -365,17 +428,43 @@ def main():
     args = p.parse_args()
 
     config = Config()
+
+    # Автовыбор устройства: CUDA → GPU + последовательно, иначе CPU + параллельно
+    if torch.cuda.is_available():
+        config.device = "cuda"
+        config.batch_size = 256
+        n_jobs = 1
+        print(f"[GPU] CUDA: {torch.cuda.get_device_name(0)}, n_jobs=1")
+    else:
+        config.device = "cpu"
+        n_jobs = args.n_jobs
+        print(f"[CPU] CUDA недоступна, n_jobs={n_jobs}")
+
     print("=" * 70)
     print("v0107 — ENSEMBLE: Wavelet-TCN + ElasticNet")
     print("=" * 70)
     print(f"α оптимизируется на validation fold ({len(config.alpha_grid)} шагов)")
     print(f"wavelet={config.wavelet}, scales={config.scales}")
-    print(f"window_step={config.window_step}, seq_length={config.seq_length}\n")
+    print(f"window_step={config.window_step}, seq_length={config.seq_length}")
+    print(f"device={config.device}, n_jobs={n_jobs}\n")
 
     df_raw = pd.read_parquet(args.dataset)
     sp_path = DEFAULT_DATASET_DIR / "session_params.parquet"
     session_params = pd.read_parquet(sp_path) if sp_path.exists() else pd.DataFrame()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Загружаем предрасчитанный CWT-кэш (посчитан локально, перекинут на сервер)
+    cwt_cache_path = DEFAULT_DATASET_DIR / "cwt_cache.npz"
+    if cwt_cache_path.exists():
+        _cache = np.load(cwt_cache_path, allow_pickle=True)
+        cwt_global    = _cache["cwt"]                      # (N, n_all_features, n_scales)
+        cwt_row_ids   = _cache["row_ids"]
+        cwt_feat_cols = list(_cache["feat_cols"])           # список признаков в кэше
+        cwt_idx_map   = {int(rid): pos for pos, rid in enumerate(cwt_row_ids)}
+        print(f"[CWT] Загружен кэш: {cwt_global.shape}, {cwt_cache_path.stat().st_size//1024} КБ")
+    else:
+        cwt_global = None; cwt_feat_cols = []; cwt_idx_map = {}
+        print("[CWT] Кэш не найден — CWT будет считаться на лету")
 
     targets = {"lt2":"target_time_to_lt2_center_sec","lt1":"target_time_to_lt1_sec"}
     if args.target != "both":
@@ -384,7 +473,7 @@ def main():
     sigma_grid = [5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 75.0, 150.0]
     v0011_ref  = _load_v0011_ref()
     v0106b_ref = {("lt2","EMG+NIRS+HRV"):2.765, ("lt1","EMG+NIRS+HRV"):3.080}
-    records = []
+    records, subj_records = [], []
 
     for tgt_name, target_col in targets.items():
         print(f"\n{'═'*70}\nТАРГЕТ: {tgt_name.upper()}\n{'═'*70}\n")
@@ -405,9 +494,13 @@ def main():
                 print(f"  [{fset} / {tgt_name} / {variant}]  n={n_subj}, {len(feat_cols)} признаков")
 
                 t0  = time.perf_counter()
-                res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
+                res = _loso(df_tgt, feat_cols, target_col, config, n_jobs,
+                            cwt_global=cwt_global, cwt_idx_map=cwt_idx_map,
+                            cwt_feat_cols=cwt_feat_cols)
                 elapsed = time.perf_counter() - t0
                 if "error" in res: print(f"    ❌ {res['error']}"); continue
+                for row in res.get("per_subject", []):
+                    subj_records.append({"variant": variant, "feature_set": fset, "target": tgt_name, **row})
 
                 fset_tag = fset.replace("+", "_")
                 np.save(out_sub / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
@@ -439,6 +532,7 @@ def main():
 
     df_out = pd.DataFrame(records)
     df_out.to_csv(OUT_DIR / "summary.csv", index=False)
+    pd.DataFrame(subj_records).to_csv(OUT_DIR / "per_subject.csv", index=False)
     df_noabs = df_out[df_out["variant"] == "noabs"]
     if not df_noabs.empty:
         df_noabs.to_csv(OUT_DIR / "noabs" / "summary.csv", index=False)

@@ -295,16 +295,20 @@ def _loso(df, feat_cols, target_col, config, n_jobs):
     records  = Parallel(n_jobs=n_jobs, backend="loky", verbose=1)(
         delayed(_run_one_loso_fold)(s, df, feat_cols, target_col, config)
         for s in subjects)
-    all_pred, all_true = [], []
+    all_pred, all_true, subj_rows = [], [], []
     for rec in records:
         if "error" not in rec:
             all_pred.append(rec["y_pred"]); all_true.append(rec["y_true"])
+            mae_s = mean_absolute_error(rec["y_true"], rec["y_pred"]) / 60.0
+            r2_s  = r2_score(rec["y_true"], rec["y_pred"]) if len(rec["y_true"]) > 1 else float("nan")
+            subj_rows.append({"subject_id": rec["fold"], "mae_min": round(mae_s, 4), "r2": round(r2_s, 3)})
     if not all_pred: return {"error": "Нет данных"}
     y_pred = np.concatenate(all_pred); y_true = np.concatenate(all_true)
     return {"y_pred": y_pred, "y_true": y_true,
             "raw_mae_min": mean_absolute_error(y_true, y_pred) / 60.0,
             "r2": r2_score(y_true, y_pred),
-            "rho": float(spearmanr(y_true, y_pred).statistic)}
+            "rho": float(spearmanr(y_true, y_pred).statistic),
+            "per_subject": subj_rows}
 
 
 def main():
@@ -319,12 +323,25 @@ def main():
     args = p.parse_args()
 
     config = Config()
+
+    # Автовыбор устройства: CUDA → GPU + последовательно, иначе CPU + параллельно
+    if torch.cuda.is_available():
+        config.device = "cuda"
+        config.batch_size = 256
+        n_jobs = 1
+        print(f"[GPU] CUDA: {torch.cuda.get_device_name(0)}, n_jobs=1")
+    else:
+        config.device = "cpu"
+        n_jobs = args.n_jobs
+        print(f"[CPU] CUDA недоступна, n_jobs={n_jobs}")
+
     print("=" * 70)
     print("v0106b — WAVELET → TCN (CWT + дилатированные свёртки)")
     print("=" * 70)
     print(f"wavelet={config.wavelet}, scales={config.scales}")
     print(f"window_step={config.window_step}, seq_length={config.seq_length}")
-    print(f"n_channels={config.n_channels}, dilations={config.dilations}\n")
+    print(f"n_channels={config.n_channels}, dilations={config.dilations}")
+    print(f"device={config.device}, n_jobs={n_jobs}\n")
 
     df_raw = pd.read_parquet(args.dataset)
     sp_path = DEFAULT_DATASET_DIR / "session_params.parquet"
@@ -337,8 +354,8 @@ def main():
 
     # Расширенный sigma grid: добавляем мелкие значения (raw=2.765 < kalman=3.055 → ищем лучшее)
     sigma_grid = [5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 75.0, 150.0]
-    v0011_ref  = _load_v0011_ref()
-    records = []
+    v0011_ref    = _load_v0011_ref()
+    records, subj_records = [], []
 
     variants = [
         ("with_abs", None,        OUT_DIR),
@@ -364,9 +381,11 @@ def main():
                 print(f"  [{fset} / {tgt_name} / {variant}]  n={n_subj}, {len(feat_cols)} признаков")
 
                 t0  = time.perf_counter()
-                res = _loso(df_tgt, feat_cols, target_col, config, args.n_jobs)
+                res = _loso(df_tgt, feat_cols, target_col, config, n_jobs)
                 elapsed = time.perf_counter() - t0
                 if "error" in res: print(f"    ❌ {res['error']}"); continue
+                for row in res.get("per_subject", []):
+                    subj_records.append({"variant": variant, "feature_set": fset, "target": tgt_name, **row})
 
                 fset_tag = fset.replace("+", "_")
                 np.save(out_sub / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
@@ -397,6 +416,7 @@ def main():
 
     df_out = pd.DataFrame(records)
     df_out.to_csv(OUT_DIR / "summary.csv", index=False)
+    pd.DataFrame(subj_records).to_csv(OUT_DIR / "per_subject.csv", index=False)
     # Отдельный CSV для noabs
     df_noabs = df_out[df_out["variant"] == "noabs"]
     if not df_noabs.empty:
