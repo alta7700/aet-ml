@@ -401,6 +401,10 @@ def main():
                 for row in res.get("per_subject", []):
                     subj_records.append({"variant": variant, "feature_set": fset, "target": tgt_name, **row})
 
+                fset_tag = fset.replace("+", "_")
+                np.save(out_sub / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
+                np.save(out_sub / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
+
                 best_mae, best_sig, k_maes = float("inf"), sigma_grid[0], {}
                 for sigma in sigma_grid:
                     y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)

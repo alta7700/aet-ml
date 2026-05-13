@@ -1,0 +1,21 @@
+======================================================================
+v0101 — LSTM TEMPORAL С JOBLIB PARALLELIZATION
+======================================================================
+Config: hidden=128, batch=16, epochs=100, device=mps
+n_jobs=-1 (параллельные LOSO фолды)
+
+
+══════════════════════════════════════════════════════════════════════
+ТАРГЕТ: LT2
+══════════════════════════════════════════════════════════════════════
+
+  [EMG / lt2]  n=18, 79 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+/Users/tascan/.pyenv/versions/3.13.5/lib/python3.13/site-packages/joblib/externals/loky/backend/resource_tracker.py:359: UserWarning: resource_tracker: There appear to be 1 leaked file objects to clean up at shutdown
+  warnings.warn(
+/Users/tascan/.pyenv/versions/3.13.5/lib/python3.13/site-packages/joblib/externals/loky/backend/resource_tracker.py:359: UserWarning: resource_tracker: There appear to be 13 leaked semlock objects to clean up at shutdown
+  warnings.warn(
+/Users/tascan/.pyenv/versions/3.13.5/lib/python3.13/site-packages/joblib/externals/loky/backend/resource_tracker.py:359: UserWarning: resource_tracker: There appear to be 2 leaked folder objects to clean up at shutdown
+  warnings.warn(
+/Users/tascan/.pyenv/versions/3.13.5/lib/python3.13/site-packages/joblib/externals/loky/backend/resource_tracker.py:375: UserWarning: resource_tracker: /var/folders/lx/99ynpmmx0ljdn6xfh1zbnvvr0000gn/T/joblib_memmapping_folder_22163_f64cb1a9a96443dba8566e93f8c21f6b_f617f46cb1794d5aa62d07d2d5d7392b: FileNotFoundError(2, 'No such file or directory')
+  warnings.warn(f"resource_tracker: {name}: {e!r}")

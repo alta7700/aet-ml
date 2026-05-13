@@ -74,6 +74,12 @@ from dataset_pipeline.baselines import (
 
 OUT_DIR = _ROOT / "results" / "v0011"
 
+# Абсолютные признаки — исключаются в варианте noabs (идентично v0102–v0107)
+EXCLUDE_ABS = frozenset([
+    "trainred_smo2_mean", "trainred_hhb_mean", "trainred_hbdiff_mean", "trainred_thb_mean",
+    "hrv_mean_rr_ms", "feat_smo2_x_rr",
+])
+
 # ─── Определения признаков ────────────────────────────────────────────────────
 
 # Сырые ЭМГ-колонки (до z-norm) — 68 штук
@@ -668,6 +674,7 @@ def main() -> None:
         targets_cfg = {k: v for k, v in targets_cfg.items() if k == args.target}
 
     all_records: list[dict] = []
+    all_noabs_records: list[dict] = []
     honest_records: list[dict] = []
     honest_md_blocks: list[str] = []
 
@@ -741,6 +748,33 @@ def main() -> None:
                     honest_md_blocks.append(
                         format_honest_block(hb, fset, tgt_name))
 
+        # ── Noabs вариант: ypred/ytrue без honest baselines ──────────────────
+        noabs_dir = OUT_DIR / "noabs"
+        noabs_dir.mkdir(exist_ok=True)
+        for fset in args.feature_set:
+            feat_cols_full = get_feature_cols(df_prep_tgt, fset)
+            feat_cols_na = [c for c in feat_cols_full if c not in EXCLUDE_ABS]
+            if not feat_cols_na:
+                continue
+            records_na = run_zoo(df_prep_tgt, feat_cols_na, target_col,
+                                 fset, tgt_name, zoo,
+                                 args.sigma_p, args.sigma_obs,
+                                 n_jobs=args.n_jobs)
+            all_noabs_records.extend(records_na)
+            best_na = min(
+                (r for r in records_na if r.get("kalman_mae_min") is not None),
+                key=lambda r: r["kalman_mae_min"],
+                default=None,
+            )
+            if best_na is not None:
+                _loso_na = best_na.get("_loso")
+                if _loso_na is not None:
+                    fset_tag = fset.replace("+", "_")
+                    np.save(noabs_dir / f"ypred_{tgt_name}_{fset_tag}.npy", _loso_na["y_pred"])
+                    np.save(noabs_dir / f"ytrue_{tgt_name}_{fset_tag}.npy", _loso_na["y_true"])
+                    print(f"  [{fset} / {tgt_name} / noabs]  "
+                          f"kalman={best_na['kalman_mae_min']:.3f}")
+
     # Сводная таблица
     summary_rows = [{k: v for k, v in r.items() if k != "_loso"}
                     for r in all_records]
@@ -748,6 +782,13 @@ def main() -> None:
     summary_df = summary_df.dropna(subset=["kalman_mae_min"])
     summary_df.to_csv(OUT_DIR / "summary.csv", index=False)
     print(f"\n  → summary.csv ({len(summary_df)} строк)")
+
+    if all_noabs_records:
+        noabs_summary_rows = [{k: v for k, v in r.items() if k != "_loso"}
+                              for r in all_noabs_records]
+        noabs_summary_df = pd.DataFrame(noabs_summary_rows).dropna(subset=["kalman_mae_min"])
+        noabs_summary_df.to_csv(OUT_DIR / "noabs" / "summary.csv", index=False)
+        print(f"  → noabs/summary.csv ({len(noabs_summary_df)} строк)")
 
     # Per-subject MAE по всем моделям и наборам признаков
     subj_rows = []

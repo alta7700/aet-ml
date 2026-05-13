@@ -456,6 +456,10 @@ def main() -> None:
                 for row in res.get("per_subject", []):
                     all_subj_records.append({"variant": variant, "feature_set": fset, "target": tgt_name, **row})
 
+                fset_tag = fset.replace("+", "_")
+                np.save(out_sub / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
+                np.save(out_sub / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
+
                 best_kalman_mae = float("inf")
                 best_sigma      = sigma_grid[0]
                 kalman_maes     = {}
