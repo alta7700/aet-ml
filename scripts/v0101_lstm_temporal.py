@@ -400,7 +400,7 @@ def main() -> None:
 
     targets_cfg = {
         "lt2": {"col": "target_time_to_lt2_center_sec", "label": "lt2"},
-        "lt1": {"col": "target_time_to_lt1_sec", "label": "lt1"},
+        "lt1": {"col": "target_time_to_lt1_pchip_sec", "label": "lt1"},
     }
     if args.target != "both":
         targets_cfg = {k: v for k, v in targets_cfg.items() if k == args.target}
