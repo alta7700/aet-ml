@@ -660,7 +660,7 @@ def main() -> None:
             "label": "lt2",
         },
         "lt1": {
-            "col": "target_time_to_lt1_sec",
+            "col": "target_time_to_lt1_pchip_sec",
             "label": "lt1",
         },
     }

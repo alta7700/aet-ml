@@ -66,7 +66,7 @@ OUT_DIR = _ROOT / "results" / "v0011c"
 
 TARGET_CFG = {
     "lt2": "target_time_to_lt2_center_sec",
-    "lt1": "target_time_to_lt1_sec",
+    "lt1": "target_time_to_lt1_pchip_sec",
 }
 
 # σ_obs сетка при σ_p=5

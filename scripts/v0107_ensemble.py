@@ -466,7 +466,7 @@ def main():
         cwt_global = None; cwt_feat_cols = []; cwt_idx_map = {}
         print("[CWT] Кэш не найден — CWT будет считаться на лету")
 
-    targets = {"lt2":"target_time_to_lt2_center_sec","lt1":"target_time_to_lt1_sec"}
+    targets = {"lt2":"target_time_to_lt2_center_sec","lt1":"target_time_to_lt1_pchip_sec"}
     if args.target != "both":
         targets = {k: v for k, v in targets.items() if k == args.target}
 

@@ -21,11 +21,11 @@ OUT_DIR  = RESULTS / "v0108_analysis"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Конфиг анализа
-TARGET_FOCUS   = ["lt2"]            # "lt2" / "lt1" / оба → ["lt1", "lt2"]
+TARGET_FOCUS   = ["lt1", "lt2"]     # "lt2" / "lt1" / оба → ["lt1", "lt2"]
 FSET_FOCUS     = "EMG+NIRS+HRV"    # лучший набор признаков
 VARIANT_FOCUS  = "noabs"            # noabs убирает монотонные абсолютные признаки
 TRAINED_THRESH = 13.0               # мин — порог LT2 для тренированных
-EXCLUDE        = {"v0106c"}         # слабые/сломанные скрипты
+EXCLUDE        = set()              # анализируем все модели включая v0106c
 
 
 # ─── Шаг 1: разметка тренированности ─────────────────────────────────────────

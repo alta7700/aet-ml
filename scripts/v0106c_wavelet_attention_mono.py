@@ -354,7 +354,7 @@ def main():
     session_params = pd.read_parquet(sp_path) if sp_path.exists() else pd.DataFrame()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    targets = {"lt2":"target_time_to_lt2_center_sec","lt1":"target_time_to_lt1_sec"}
+    targets = {"lt2":"target_time_to_lt2_center_sec","lt1":"target_time_to_lt1_pchip_sec"}
     if args.target != "both":
         targets = {k: v for k, v in targets.items() if k == args.target}
 

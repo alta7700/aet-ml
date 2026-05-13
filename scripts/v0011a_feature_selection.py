@@ -90,7 +90,7 @@ V0011_BASELINE = {
 
 TARGET_CFG = {
     "lt2": "target_time_to_lt2_center_sec",
-    "lt1": "target_time_to_lt1_sec",
+    "lt1": "target_time_to_lt1_pchip_sec",
 }
 
 
