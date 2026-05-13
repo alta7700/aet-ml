@@ -1,0 +1,116 @@
+[CPU] CUDA недоступна, n_jobs=-1
+======================================================================
+v0104 — ATTENTION-LSTM (LSTM + Multi-Head Self-Attention pooling)
+======================================================================
+window_step=6 (каждые 30 сек)
+seq_length=12  (360 сек истории)
+hidden_size=64, num_heads=4
+device=cpu, n_jobs=-1
+
+
+══════════════════════════════════════════════════════════════════════
+ТАРГЕТ: LT2
+══════════════════════════════════════════════════════════════════════
+
+  [EMG / lt2 / with_abs]  n=19, 79 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.2min finished
+    raw=3.658  kalman_best=3.974 (sigma=30.0)  (190.9s)
+  [EMG / lt2 / noabs]  n=19, 79 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.1min finished
+    raw=3.680  kalman_best=3.959 (sigma=30.0)  (185.1s)
+  [NIRS / lt2 / with_abs]  n=19, 18 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.1min finished
+    raw=5.454  kalman_best=5.732 (sigma=30.0)  (186.2s)
+  [NIRS / lt2 / noabs]  n=19, 14 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.1min finished
+    raw=4.790  kalman_best=4.961 (sigma=30.0)  (189.0s)
+  [EMG+NIRS / lt2 / with_abs]  n=19, 97 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.2min finished
+    raw=3.783  kalman_best=4.095 (sigma=30.0)  (190.6s)
+  [EMG+NIRS / lt2 / noabs]  n=19, 93 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.0min finished
+    raw=3.550  kalman_best=3.880 (sigma=30.0)  (182.9s)
+  [EMG+NIRS+HRV / lt2 / with_abs]  n=19, 107 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.1min finished
+    raw=2.563  kalman_best=2.915 (sigma=30.0)  (188.1s)
+  [EMG+NIRS+HRV / lt2 / noabs]  n=19, 101 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  19 out of  19 | elapsed:  3.2min finished
+    raw=3.157  kalman_best=3.466 (sigma=30.0)  (190.3s)
+
+══════════════════════════════════════════════════════════════════════
+ТАРГЕТ: LT1
+══════════════════════════════════════════════════════════════════════
+
+  [EMG / lt1 / with_abs]  n=14, 79 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=3.566  kalman_best=3.847 (sigma=30.0)  (138.1s)
+  [EMG / lt1 / noabs]  n=14, 79 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=3.554  kalman_best=3.795 (sigma=30.0)  (138.6s)
+  [NIRS / lt1 / with_abs]  n=14, 18 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=5.235  kalman_best=5.288 (sigma=30.0)  (137.4s)
+  [NIRS / lt1 / noabs]  n=14, 14 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=4.307  kalman_best=4.479 (sigma=30.0)  (136.9s)
+  [EMG+NIRS / lt1 / with_abs]  n=14, 97 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=3.561  kalman_best=3.795 (sigma=30.0)  (139.7s)
+  [EMG+NIRS / lt1 / noabs]  n=14, 93 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=3.584  kalman_best=3.838 (sigma=30.0)  (140.3s)
+  [EMG+NIRS+HRV / lt1 / with_abs]  n=14, 107 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.2min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=2.941  kalman_best=3.209 (sigma=30.0)  (140.1s)
+  [EMG+NIRS+HRV / lt1 / noabs]  n=14, 101 признаков
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 11 concurrent workers.
+[Parallel(n_jobs=-1)]: Done   8 out of  14 | elapsed:  1.5min remaining:  1.1min
+[Parallel(n_jobs=-1)]: Done  14 out of  14 | elapsed:  2.3min finished
+    raw=3.334  kalman_best=3.579 (sigma=30.0)  (139.9s)
+
+======================================================================
+ИТОГИ:
+
+  [with_abs]
+    LT1 / EMG+NIRS+HRV      kalman=3.209  Δ=+1.031 vs v0011
+    LT1 / EMG+NIRS          kalman=3.795  Δ=+1.346 vs v0011
+    LT1 / EMG               kalman=3.847  Δ=+1.175 vs v0011
+    LT1 / NIRS              kalman=5.288  Δ=+1.321 vs v0011
+    LT2 / EMG+NIRS+HRV      kalman=2.915  Δ=+0.753 vs v0011
+    LT2 / EMG               kalman=3.974  Δ=+0.981 vs v0011
+    LT2 / EMG+NIRS          kalman=4.095  Δ=+1.241 vs v0011
+    LT2 / NIRS              kalman=5.732  Δ=+1.770 vs v0011
+
+  [noabs]
+    LT1 / EMG+NIRS+HRV      kalman=3.579  Δ=+1.401 vs v0011
+    LT1 / EMG               kalman=3.795  Δ=+1.124 vs v0011
+    LT1 / EMG+NIRS          kalman=3.838  Δ=+1.389 vs v0011
+    LT1 / NIRS              kalman=4.479  Δ=+0.511 vs v0011
+    LT2 / EMG+NIRS+HRV      kalman=3.466  Δ=+1.304 vs v0011
+    LT2 / EMG+NIRS          kalman=3.880  Δ=+1.026 vs v0011
+    LT2 / EMG               kalman=3.959  Δ=+0.966 vs v0011
+    LT2 / NIRS              kalman=4.961  Δ=+0.999 vs v0011
+
+✅ Готово: /Users/tascan/Desktop/диссер/results/v0104

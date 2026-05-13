@@ -749,6 +749,32 @@ def main() -> None:
     summary_df.to_csv(OUT_DIR / "summary.csv", index=False)
     print(f"\n  → summary.csv ({len(summary_df)} строк)")
 
+    # Per-subject MAE по всем моделям и наборам признаков
+    subj_rows = []
+    for r in all_records:
+        loso = r.get("_loso")
+        if loso is None or loso.get("subjects") is None:
+            continue
+        subj_arr = loso["subjects"]
+        y_pred   = loso["y_pred"]
+        y_true   = loso["y_true"]
+        for s in np.unique(subj_arr):
+            mask = subj_arr == s
+            if mask.sum() < 2:
+                continue
+            mae_s = mean_absolute_error(y_true[mask], y_pred[mask]) / 60.0
+            r2_s  = r2_score(y_true[mask], y_pred[mask])
+            subj_rows.append({
+                "feature_set": r["feature_set"],
+                "target":      r["target"],
+                "model":       r["model"],
+                "subject_id":  s,
+                "mae_min":     round(mae_s, 4),
+                "r2":          round(r2_s, 3),
+            })
+    pd.DataFrame(subj_rows).to_csv(OUT_DIR / "per_subject.csv", index=False)
+    print(f"  → per_subject.csv ({len(subj_rows)} строк)")
+
     # Лучший на набор
     best_df = (summary_df
                .sort_values("kalman_mae_min")

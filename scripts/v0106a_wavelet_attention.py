@@ -94,16 +94,24 @@ class Config:
 
 # ─── Dataset — возвращает оригинальные + CWT признаки ─────────────────────────
 
-class WaveletSeqDataset(Dataset):
-    """Возвращает (x_orig, x_cwt, y) для каждой последовательности.
+def _precompute_cwt(X: np.ndarray, scales, wavelet) -> np.ndarray:
+    """CWT для всего X (n, n_features) → (n, n_features, n_scales)."""
+    n, n_f, n_sc = len(X), X.shape[1], len(scales)
+    out = np.zeros((n, n_f, n_sc), dtype=np.float32)
+    if n > 1:
+        for f in range(n_f):
+            coeffs, _ = pywt.cwt(X[:, f].astype(np.float64), scales, wavelet)
+            out[:, f, :] = np.abs(coeffs).T.astype(np.float32)
+    return out
 
-    x_orig: (seq_len, n_features) — стандартизованные признаки
-    x_cwt:  (seq_len, n_features × n_scales) — энергия CWT, сглажена по масштабу
-    """
+
+class WaveletSeqDataset(Dataset):
+    """Возвращает (x_orig, x_cwt, y). Если cwt_cache передан — CWT не пересчитывается."""
 
     def __init__(self, X: np.ndarray, y: np.ndarray,
                  seq_length: int, window_step: int,
-                 scales: list[int], wavelet: str):
+                 scales: list[int], wavelet: str,
+                 cwt_cache: np.ndarray = None, device: str = "cpu"):
         ind_idx = np.arange(0, len(X), window_step)
         X_ind = X[ind_idx].astype(np.float32)
         y_ind = y[ind_idx].astype(np.float32)
@@ -111,29 +119,23 @@ class WaveletSeqDataset(Dataset):
         self.seq_length = seq_length
 
         n_f, n_sc = X_ind.shape[1], len(scales)
-
-        cwt_all = np.zeros((self.n, n_f, n_sc), dtype=np.float32)
-        if self.n > 1:
-            for f in range(n_f):
-                coeffs, _ = pywt.cwt(X_ind[:, f].astype(np.float64), scales, wavelet)
-                cwt_all[:, f, :] = np.abs(coeffs).T.astype(np.float32)
+        cwt_all = cwt_cache[ind_idx] if cwt_cache is not None else _precompute_cwt(X_ind, scales, wavelet)
 
         flat  = cwt_all.reshape(-1, n_sc)
         mean_ = flat.mean(0); std_ = flat.std(0) + 1e-8
-        # cwt_flat: (n_ind, n_features × n_scales) — для подачи в Linear
-        cwt_norm = ((cwt_all - mean_) / std_).astype(np.float32)
-        self.cwt  = cwt_norm.reshape(self.n, n_f * n_sc)
-        self.X    = X_ind
-        self.y    = y_ind
+        cwt_norm = ((cwt_all - mean_) / std_).reshape(self.n, n_f * n_sc).astype(np.float32)
+
+        self.X   = torch.from_numpy(X_ind).to(device)
+        self.cwt = torch.from_numpy(cwt_norm).to(device)
+        self.y   = torch.from_numpy(y_ind).to(device)
 
     def __len__(self) -> int:
         return max(0, self.n - self.seq_length + 1)
 
     def __getitem__(self, idx: int):
-        x_orig = torch.from_numpy(self.X[idx: idx + self.seq_length])
-        x_cwt  = torch.from_numpy(self.cwt[idx: idx + self.seq_length])
-        y      = torch.tensor(self.y[idx + self.seq_length - 1], dtype=torch.float32)
-        return x_orig, x_cwt, y
+        return (self.X[idx: idx + self.seq_length],
+                self.cwt[idx: idx + self.seq_length],
+                self.y[idx + self.seq_length - 1])
 
 
 # ─── Attention pooling (из v0104) ─────────────────────────────────────────────
@@ -206,9 +208,6 @@ def train_model(model: nn.Module, train_loader: DataLoader,
     for _ in range(config.num_epochs):
         model.train()
         for x_orig, x_cwt, y in train_loader:
-            x_orig = x_orig.to(config.device)
-            x_cwt  = x_cwt.to(config.device)
-            y      = y.to(config.device)
             optimizer.zero_grad()
             loss = criterion(model(x_orig, x_cwt), y)
             loss.backward()
@@ -220,9 +219,6 @@ def train_model(model: nn.Module, train_loader: DataLoader,
         val_loss = 0.0
         with torch.no_grad():
             for x_orig, x_cwt, y in val_loader:
-                x_orig = x_orig.to(config.device)
-                x_cwt  = x_cwt.to(config.device)
-                y      = y.to(config.device)
                 val_loss += criterion(model(x_orig, x_cwt), y).item() * len(y)
         val_loss /= max(len(val_loader.dataset), 1)
 
@@ -241,7 +237,8 @@ def train_model(model: nn.Module, train_loader: DataLoader,
 
 # ─── Один LOSO фолд ───────────────────────────────────────────────────────────
 
-def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
+def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
+                       cwt_global=None, cwt_idx_map=None, cwt_feat_cols=None):
     train = df[df["subject_id"] != test_subject_id].sort_values(
         ["subject_id", "window_start_sec"])
     test  = df[df["subject_id"] == test_subject_id].sort_values("window_start_sec")
@@ -251,14 +248,29 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     X_te = sc.transform(imp.transform(test[feat_cols].values))
     y_tr = train[target_col].values; y_te = test[target_col].values
 
+    dev = config.device
+    if cwt_global is not None and cwt_idx_map and cwt_feat_cols:
+        f_idx  = [cwt_feat_cols.index(c) for c in feat_cols if c in cwt_feat_cols]
+        tr_pos = [cwt_idx_map[i] for i in train.index if i in cwt_idx_map]
+        te_pos = [cwt_idx_map[i] for i in test.index  if i in cwt_idx_map]
+        if tr_pos and len(f_idx) == len(feat_cols):
+            cwt_tr = cwt_global[np.ix_(tr_pos, f_idx)]
+            cwt_te = cwt_global[np.ix_(te_pos, f_idx)]
+        else:
+            cwt_tr = _precompute_cwt(X_tr, config.scales, config.wavelet)
+            cwt_te = _precompute_cwt(X_te, config.scales, config.wavelet)
+    else:
+        cwt_tr = _precompute_cwt(X_tr, config.scales, config.wavelet)
+        cwt_te = _precompute_cwt(X_te, config.scales, config.wavelet)
+
     _offset_ds = [
         WaveletSeqDataset(X_tr[off:], y_tr[off:], config.seq_length, config.window_step,
-                          config.scales, config.wavelet)
+                          config.scales, config.wavelet, cwt_cache=cwt_tr[off:], device=dev)
         for off in range(config.window_step)
     ]
     train_ds = ConcatDataset([d for d in _offset_ds if len(d) > 0])
     test_ds  = WaveletSeqDataset(X_te, y_te, config.seq_length, config.window_step,
-                                  config.scales, config.wavelet)
+                                  config.scales, config.wavelet, cwt_cache=cwt_te, device=dev)
 
     if len(train_ds) < 4 or len(test_ds) == 0:
         return {"fold": test_subject_id, "error": "Недостаточно данных"}
@@ -268,9 +280,9 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
         train_ds, [split, len(train_ds) - split],
         generator=torch.Generator().manual_seed(42))
 
-    train_loader = DataLoader(train_sub, batch_size=config.batch_size, shuffle=True)
-    val_loader   = DataLoader(val_sub,   batch_size=config.batch_size, shuffle=False)
-    test_loader  = DataLoader(test_ds,   batch_size=config.batch_size, shuffle=False)
+    train_loader = DataLoader(train_sub, batch_size=config.batch_size, shuffle=True,  num_workers=0)
+    val_loader   = DataLoader(val_sub,   batch_size=config.batch_size, shuffle=False, num_workers=0)
+    test_loader  = DataLoader(test_ds,   batch_size=config.batch_size, shuffle=False, num_workers=0)
 
     n_cwt = X_tr.shape[1] * len(config.scales)
     model = WaveletAttentionLSTM(
@@ -286,8 +298,7 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
     preds = []
     with torch.no_grad():
         for x_orig, x_cwt, _ in test_loader:
-            preds.append(model(x_orig.to(config.device),
-                               x_cwt.to(config.device)).cpu().numpy())
+            preds.append(model(x_orig, x_cwt).cpu().numpy())
     y_pred_sparse = np.concatenate(preds)
 
     # Интерполяция обратно на все окна
@@ -306,10 +317,12 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config):
 
 # ─── LOSO + main (стандартная структура) ──────────────────────────────────────
 
-def _loso(df, feat_cols, target_col, config, n_jobs):
+def _loso(df, feat_cols, target_col, config, n_jobs,
+          cwt_global=None, cwt_idx_map=None, cwt_feat_cols=None):
     subjects = sorted(df["subject_id"].unique())
     records  = Parallel(n_jobs=n_jobs, backend="loky", verbose=1)(
-        delayed(_run_one_loso_fold)(s, df, feat_cols, target_col, config)
+        delayed(_run_one_loso_fold)(s, df, feat_cols, target_col, config,
+                                    cwt_global, cwt_idx_map, cwt_feat_cols)
         for s in subjects)
     all_pred, all_true, subj_rows = [], [], []
     for rec in records:
@@ -369,6 +382,19 @@ def main():
     if args.target != "both":
         targets = {k: v for k, v in targets.items() if k == args.target}
 
+    # ─── Загрузка CWT-кэша (precomputed локально, shape: N×n_feat×n_scales) ───────
+    cwt_cache_path = DEFAULT_DATASET_DIR / "cwt_cache.npz"
+    if cwt_cache_path.exists():
+        _cache        = np.load(cwt_cache_path, allow_pickle=True)
+        cwt_global    = _cache["cwt"]          # (N, n_features, n_scales)
+        cwt_row_ids   = _cache["row_ids"]      # оригинальные индексы датафрейма
+        cwt_feat_cols = list(_cache["feat_cols"])
+        cwt_idx_map   = {int(rid): pos for pos, rid in enumerate(cwt_row_ids)}
+        print(f"[CWT] Загружен кэш: {cwt_global.shape}, {len(cwt_feat_cols)} признаков")
+    else:
+        cwt_global = None; cwt_feat_cols = []; cwt_idx_map = {}
+        print("[CWT] Кэш не найден — CWT будет считаться на лету (медленнее)")
+
     sigma_grid   = [30.0, 50.0, 75.0, 150.0]
     v0011_ref    = _load_v0011_ref()
     records, subj_records = [], []
@@ -392,7 +418,8 @@ def main():
                 print(f"  [{fset} / {tgt_name} / {variant}]  n={n_subj}, {len(feat_cols)} признаков")
 
                 t0  = time.perf_counter()
-                res = _loso(df_tgt, feat_cols, target_col, config, n_jobs)
+                res = _loso(df_tgt, feat_cols, target_col, config, n_jobs,
+                            cwt_global, cwt_idx_map, cwt_feat_cols)
                 elapsed = time.perf_counter() - t0
                 if "error" in res: print(f"    ❌ {res['error']}"); continue
                 for row in res.get("per_subject", []):
