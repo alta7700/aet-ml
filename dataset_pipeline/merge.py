@@ -27,7 +27,6 @@ from dataset_pipeline.common import DEFAULT_DATASET_DIR, save_parquet
 _WINDOWS_COLS = [
     "window_id",
     "subject_id",
-    "subject_name",
     "source_h5_path",
     "window_start_sec",
     "window_end_sec",

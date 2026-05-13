@@ -62,6 +62,7 @@ def build_targets_table(
             lt1_df[[
                 "subject_id",
                 "lt1_time_sec",
+                "lt1_pchip_time_sec",
                 "lt1_interval_start_sec",
                 "lt1_interval_end_sec",
                 "lt1_time_label_quality",
@@ -141,8 +142,14 @@ def build_targets_table(
             lt1_usable = lt1_quality in TIME_TARGET_QUALITIES and subj_lt1_available
             lt1_eq = int(row.get("lt1_equals_lt2", 0) or 0)
 
+            lt1_pchip_time_sec = float(row["lt1_pchip_time_sec"]) if subj_lt1_available else np.nan
+
             if subj_lt1_available and np.isfinite(lt1_time_sec):
                 time_to_lt1_sec: float | None = lt1_time_sec - window_end_sec
+                time_to_lt1_pchip_sec: float | None = (
+                    lt1_pchip_time_sec - window_end_sec
+                    if np.isfinite(lt1_pchip_time_sec) else np.nan
+                )
                 lt1_interval_start = float(row["lt1_interval_start_sec"])
                 lt1_interval_end = float(row["lt1_interval_end_sec"])
                 lt1_binary: int | None
@@ -160,10 +167,12 @@ def build_targets_table(
                 )
             else:
                 time_to_lt1_sec = np.nan
+                time_to_lt1_pchip_sec = np.nan
                 lt1_binary = None
                 lt1_overlap = None
 
             entry["target_time_to_lt1_sec"] = time_to_lt1_sec
+            entry["target_time_to_lt1_pchip_sec"] = time_to_lt1_pchip_sec
             entry["target_time_to_lt1_usable"] = int(lt1_usable)
             entry["target_lt1_binary_label"] = lt1_binary
             entry["target_lt1_binary_valid"] = int(lt1_binary is not None)

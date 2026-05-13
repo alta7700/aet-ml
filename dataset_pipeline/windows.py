@@ -59,7 +59,6 @@ def build_windows_for_subject(
             {
                 "window_id": window_id,
                 "subject_id": subject_row["subject_id"],
-                "subject_name": subject_row["subject_name"],
                 "source_h5_path": str(finaltest_path.resolve()),
                 "window_start_sec": float(window_start_sec),
                 "window_end_sec": window_end_sec,

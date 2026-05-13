@@ -1,8 +1,15 @@
-"""CLI-скрипт: расчёт LT1 методом D-max по лактатным кривым.
+"""CLI-скрипт: расчёт LT1 методом baseline+0.4 ммоль/л по лактатным кривым.
 
-Тот же алгоритм, что и modified D-max для LT2 (cubic fit + PCHIP-проверка),
-но линия проводится от первой точки до последней (start_index = 0).
-Физиологически это нахождение первого «плеча» лактатной кривой — LT1.
+Метод: строим PCHIP по дискретным точкам лактата (мощность→лактат),
+вычисляем базовый уровень как среднее первых двух точек, ищем первое
+пересечение кривой с уровнем baseline + BASELINE_DELTA_MMOL.
+
+Это стандартный физиологический критерий LT1 (first lactate threshold):
+первое устойчивое превышение лактата покоя на 0.4 ммоль/л.
+ICC с log-log методом ~0.98 (Newell et al., 2007).
+
+lt1_time_sec     — дискретный момент замера (первая точка выше порога)
+lt1_pchip_time_sec — интерполированный PCHIP-переход через baseline+0.4
 
 Выходной файл: dataset/lt1_labels.parquet
   subject_id, lt1_power_w, lt1_lactate_mmol, lt1_time_sec,
@@ -39,124 +46,126 @@ from dataset_pipeline.common import (
 from methods.lt2 import (
     LactatePoint,
     build_lactate_points,
-    find_max_distance_point,
     interpolate_time_for_power,
     load_fulltest,
-    perpendicular_distance,
 )
 
-# Минимальное число уникальных ступеней лактата для D-max LT1
+# Минимальное число уникальных ступеней лактата для LT1
 MIN_STAGES_LT1 = 4
-# Порог расхождения cubic vs PCHIP (Вт) для оценки качества
-PCHIP_DELTA_HIGH_W = 10.0
-PCHIP_DELTA_MEDIUM_W = 25.0
 MIN_STAGES_HIGH = 5
+# Прирост лактата над базовым уровнем для определения LT1
+BASELINE_DELTA_MMOL = 0.4
+# Сколько начальных точек усредняем для baseline (обычно 1–2)
+BASELINE_N_POINTS = 2
 
 
 @dataclass(frozen=True)
-class DmaxLt1Result:
-    """Результат D-max LT1."""
+class BaselineLt1Result:
+    """Результат LT1 методом baseline + BASELINE_DELTA_MMOL."""
 
-    lt1_power_w: float
-    lt1_lactate_mmol: float
-    lt1_time_sec: float
-    lt1_pchip_power_w: float
-    lt1_pchip_lactate_mmol: float
-    lt1_pchip_time_sec: float
-    interval_start_sec: float
-    interval_end_sec: float
+    lt1_power_w: float           # дискретная мощность (первая точка выше порога)
+    lt1_lactate_mmol: float      # лактат в этой точке
+    lt1_time_sec: float          # дискретное время
+    lt1_pchip_power_w: float     # мощность пересечения PCHIP с порогом
+    lt1_pchip_lactate_mmol: float  # лактат в точке пересечения (≈ baseline + 0.4)
+    lt1_pchip_time_sec: float    # интерполированное время пересечения
+    interval_start_sec: float    # начало окрестности (точка до пересечения)
+    interval_end_sec: float      # конец окрестности (точка после пересечения)
     interval_start_power_w: float
     interval_end_power_w: float
     power_label_quality: str
     time_label_quality: str
     n_stages: int
-    shoulder_dist_mmol: float  # максимальное перп. расстояние (мера выраженности «плеча»)
+    shoulder_dist_mmol: float    # превышение над baseline (мера выраженности LT1)
 
 
-def build_dmax_lt1(points: tuple[LactatePoint, ...]) -> DmaxLt1Result:
-    """Применяет D-max от первой до последней точки — LT1.
+def build_baseline_lt1(points: tuple[LactatePoint, ...]) -> BaselineLt1Result:
+    """Определяет LT1 как первое пересечение PCHIP-кривой с уровнем baseline+0.4.
 
-    В отличие от modified D-max (LT2), start_index всегда равен 0:
-    мы ищем первый перегиб кривой, а не второй.
+    baseline = среднее первых BASELINE_N_POINTS точек лактата.
+    Порог = baseline + BASELINE_DELTA_MMOL (0.4 ммоль/л).
+
+    Дискретная метка (lt1_time_sec) — момент замера первой точки выше порога.
+    PCHIP-метка (lt1_pchip_time_sec) — интерполированное время пересечения
+    между предыдущей (ниже) и текущей (выше) точками.
     """
-    powers = np.array([p.power_w for p in points], dtype=float)
+    powers   = np.array([p.power_w      for p in points], dtype=float)
     lactates = np.array([p.lactate_mmol for p in points], dtype=float)
-
-    # Кубический полином + PCHIP по всей кривой
-    poly = np.poly1d(np.polyfit(powers, lactates, 3))
-    fit_x = np.linspace(float(powers[0]), float(powers[-1]), 800)
-    fit_y = poly(fit_x)
-    pchip = PchipInterpolator(powers, lactates)
-    pchip_fit_y = pchip(fit_x)
-
-    # Линия D-max: от первой до последней точки (start_index = 0)
-    x1, y1 = float(powers[0]), float(lactates[0])
-    x2, y2 = float(powers[-1]), float(lactates[-1])
-
-    # Cubic fit — основная оценка
-    _, _, lt1_power_w, lt1_lactate_mmol = find_max_distance_point(
-        curve_x=fit_x, curve_y=fit_y, x1=x1, y1=y1, x2=x2, y2=y2
-    )
-    # PCHIP — проверка устойчивости
-    _, _, pchip_lt1_power_w, pchip_lt1_lactate_mmol = find_max_distance_point(
-        curve_x=fit_x, curve_y=pchip_fit_y, x1=x1, y1=y1, x2=x2, y2=y2
-    )
-
-    lt1_time_sec = interpolate_time_for_power(points, lt1_power_w)
-    pchip_lt1_time_sec = interpolate_time_for_power(points, pchip_lt1_power_w)
-
-    # Окрестность LT1 по реальным точкам
-    insert_idx = int(np.searchsorted(powers, lt1_power_w, side="right"))
-    lower_idx = max(0, insert_idx - 1)
-    upper_idx = min(len(points) - 1, insert_idx)
-    interval_start_sec = float(points[lower_idx].effective_time_sec)
-    interval_end_sec = float(points[upper_idx].effective_time_sec)
-    interval_start_power_w = float(points[lower_idx].power_w)
-    interval_end_power_w = float(points[upper_idx].power_w)
-
-    # Качество метки мощности
-    pchip_delta_w = abs(lt1_power_w - pchip_lt1_power_w)
     n_stages = len(points)
-    if pchip_delta_w <= PCHIP_DELTA_HIGH_W and n_stages >= MIN_STAGES_HIGH:
-        power_quality = "high"
-    elif pchip_delta_w <= PCHIP_DELTA_MEDIUM_W and n_stages >= MIN_STAGES_LT1:
-        power_quality = "medium"
-    else:
+
+    # ── Baseline и порог ─────────────────────────────────────────────────────
+    n_base   = min(BASELINE_N_POINTS, n_stages)
+    baseline = float(np.mean(lactates[:n_base]))
+    threshold = baseline + BASELINE_DELTA_MMOL
+
+    # ── Поиск первой дискретной точки выше порога ────────────────────────────
+    above = np.where(lactates > threshold)[0]
+    if len(above) == 0:
+        # Порог не достигнут — возвращаем последнюю точку с пометкой low
+        disc_idx = n_stages - 1
         power_quality = "low"
-
-    # Качество метки времени: только по мощности (нет secondary markers для LT1)
-    # high = high power quality + ≥5 ступеней
-    if power_quality == "high":
-        time_quality = "high"
-    elif power_quality == "medium":
-        time_quality = "medium"
     else:
-        time_quality = "low"
+        disc_idx = int(above[0])
+        power_quality = "high" if n_stages >= MIN_STAGES_HIGH else (
+            "medium" if n_stages >= MIN_STAGES_LT1 else "low"
+        )
 
-    # Проверка наличия «плеча»: вычисляем максимальное перпендикулярное расстояние.
-    # Если оно мало — кривая почти линейна, LT1 неотличим от LT2.
-    all_distances = perpendicular_distance(fit_x, fit_y, x1, y1, x2, y2)
-    max_dist = float(np.max(all_distances))
-    # Порог: расстояние < 0.5 ммоль/л → явного плеча нет
-    if max_dist < 0.5:
-        power_quality = "low"
-        time_quality = "low"
+    lt1_power_w    = float(powers[disc_idx])
+    lt1_lactate    = float(lactates[disc_idx])
+    lt1_time_sec   = float(points[disc_idx].effective_time_sec)
 
-    return DmaxLt1Result(
-        lt1_power_w=float(lt1_power_w),
-        lt1_lactate_mmol=float(lt1_lactate_mmol),
-        lt1_time_sec=float(lt1_time_sec),
-        lt1_pchip_power_w=float(pchip_lt1_power_w),
-        lt1_pchip_lactate_mmol=float(pchip_lt1_lactate_mmol),
-        lt1_pchip_time_sec=float(pchip_lt1_time_sec),
-        interval_start_sec=float(interval_start_sec),
-        interval_end_sec=float(interval_end_sec),
-        interval_start_power_w=float(interval_start_power_w),
-        interval_end_power_w=float(interval_end_power_w),
+    # ── PCHIP-интерполяция точки пересечения ─────────────────────────────────
+    pchip = PchipInterpolator(powers, lactates)
+
+    if disc_idx == 0 or len(above) == 0:
+        # Порог уже превышен с первой точки — интерп невозможна
+        pchip_power_w   = lt1_power_w
+        pchip_lactate   = lt1_lactate
+        pchip_time_sec  = lt1_time_sec
+        lower_idx       = 0
+        upper_idx       = 0
+    else:
+        lower_idx = disc_idx - 1
+        upper_idx = disc_idx
+        # Бисекция на плотной сетке между двумя соседними точками
+        search_x = np.linspace(powers[lower_idx], powers[upper_idx], 2000)
+        search_y = pchip(search_x)
+        cross = np.where(search_y >= threshold)[0]
+        if len(cross) == 0:
+            pchip_power_w  = lt1_power_w
+            pchip_lactate  = lt1_lactate
+            pchip_time_sec = lt1_time_sec
+        else:
+            pchip_power_w  = float(search_x[cross[0]])
+            pchip_lactate  = float(threshold)
+            pchip_time_sec = float(interpolate_time_for_power(points, pchip_power_w))
+
+    interval_start_sec      = float(points[lower_idx].effective_time_sec)
+    interval_end_sec        = float(points[upper_idx].effective_time_sec)
+    interval_start_power_w  = float(points[lower_idx].power_w)
+    interval_end_power_w    = float(points[upper_idx].power_w)
+
+    time_quality = power_quality
+
+    # shoulder_dist — превышение максимального лактата над baseline
+    # (мера выраженности ответа, аналог прежнего perpendicular distance)
+    shoulder_dist = float(np.max(lactates) - baseline)
+
+    return BaselineLt1Result(
+        lt1_power_w=lt1_power_w,
+        lt1_lactate_mmol=lt1_lactate,
+        lt1_time_sec=lt1_time_sec,
+        lt1_pchip_power_w=pchip_power_w,
+        lt1_pchip_lactate_mmol=pchip_lactate,
+        lt1_pchip_time_sec=pchip_time_sec,
+        interval_start_sec=interval_start_sec,
+        interval_end_sec=interval_end_sec,
+        interval_start_power_w=interval_start_power_w,
+        interval_end_power_w=interval_end_power_w,
         power_label_quality=power_quality,
         time_label_quality=time_quality,
         n_stages=n_stages,
-        shoulder_dist_mmol=float(max_dist),
+        shoulder_dist_mmol=shoulder_dist,
     )
 
 
@@ -185,7 +194,7 @@ def compute_lt1_for_subject(h5_path: Path) -> dict[str, object]:
             "lt1_error": str(exc),
         }
 
-    result = build_dmax_lt1(points)
+    result = build_baseline_lt1(points)
     return {
         "lt1_available": 1,
         "lt1_power_w": result.lt1_power_w,

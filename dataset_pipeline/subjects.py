@@ -73,13 +73,11 @@ def build_subject_row(subject_file: SubjectFile) -> dict[str, object]:
     """Собирает одну строку таблицы испытуемых."""
 
     row: dict[str, object] = {
-        "subject_dir_name": subject_file.subject_dir.name,
         "source_h5_path": str(subject_file.finaltest_path.resolve()),
     }
 
     with h5py.File(subject_file.finaltest_path, "r") as handle:
         row["subject_id"] = read_required_attr(handle, "subject_id")
-        row["subject_name"] = read_optional_attr(handle, "subject_name") or subject_file.subject_dir.name
         row["stop_time"] = read_optional_attr(handle, "stop_time")
         row["stop_time_sec"] = read_optional_attr(handle, "stop_time_sec")
 
@@ -145,6 +143,6 @@ def build_subjects_table(data_dir: Path) -> tuple[pd.DataFrame, list[str]]:
     rows = [build_subject_row(subject_file) for subject_file in subject_files]
     data_frame = pd.DataFrame(rows)
     if not data_frame.empty:
-        data_frame = data_frame.sort_values(["subject_id", "subject_dir_name"]).reset_index(drop=True)
+        data_frame = data_frame.sort_values("subject_id").reset_index(drop=True)
         data_frame = _add_derived_columns(data_frame)
     return data_frame, skipped
