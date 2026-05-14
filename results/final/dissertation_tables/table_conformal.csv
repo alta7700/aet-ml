@@ -1,0 +1,9 @@
+tag,target,feature_set,alpha,target_coverage,mean_empirical_coverage,mean_halfwidth_min,halfwidth_trained_min,halfwidth_untrained_min
+lt2_HRV,lt2,HRV,0.1,0.9,0.8848,5.247,5.143,5.298
+lt2_HRV,lt2,HRV,0.2,0.8,0.8004,3.493,3.481,3.5
+lt2_ENH,lt2,EMG+NIRS+HRV,0.1,0.9,0.8781,5.573,5.517,5.601
+lt2_ENH,lt2,EMG+NIRS+HRV,0.2,0.8,0.8034,4.176,4.144,4.192
+lt1_EN,lt1,EMG+NIRS,0.1,0.9,0.9134,9.052,8.812,9.172
+lt1_EN,lt1,EMG+NIRS,0.2,0.8,0.8282,6.988,6.807,7.079
+lt1_ENH,lt1,EMG+NIRS+HRV,0.1,0.9,0.9067,8.657,8.307,8.832
+lt1_ENH,lt1,EMG+NIRS+HRV,0.2,0.8,0.8374,6.328,6.124,6.43

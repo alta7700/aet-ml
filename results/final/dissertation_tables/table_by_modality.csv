@@ -1,0 +1,11 @@
+target,feature_set,best_model,family,loso_mae_median_min,rho,r2
+lt1,EMG,v0011,linear,2.9425,0.71,0.437
+lt1,NIRS,v0011,linear,3.6161,0.719,0.371
+lt1,HRV,v0011,linear,3.5103,0.654,0.379
+lt1,EMG+NIRS,v0011,linear,2.112,0.745,0.52
+lt1,EMG+NIRS+HRV,v0011,linear,2.2293,0.791,0.574
+lt2,EMG,v0011,linear,2.7843,0.669,0.419
+lt2,NIRS,v0011,linear,3.4477,0.615,0.333
+lt2,HRV,v0011,linear,1.9025,0.911,0.817
+lt2,EMG+NIRS,v0011,linear,2.8964,0.698,0.502
+lt2,EMG+NIRS+HRV,v0011,linear,1.914,0.909,0.825

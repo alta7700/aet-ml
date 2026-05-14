@@ -1,0 +1,6 @@
+test,result,conclusion
+ablation with_abs vs noabs (NN; 72 конфигурации),62/72 эквивалентны (86%); медиана |Δ|=0.02 мин,абсолютные признаки не нужны для NN
+lt2: HRV vs EMG+NIRS+HRV (v0011),Δmedian=-0.10 мин; p=0.966,n.s.
+lt1: EMG+NIRS vs EMG+NIRS+HRV (v0011),Δmedian=+0.10 мин; p=0.442,n.s.
+lt2: HRV vs EMG+NIRS (v0011),Δmedian=-0.71 мин; p=0.012,HRV
+pairwise Wilcoxon+Holm: v0011 vs все NN (with_abs),"39 значимых побед, 0 поражений",линейная модель статистически доминирует

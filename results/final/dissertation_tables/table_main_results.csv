@@ -1,0 +1,7 @@
+target,model,family,feature_set,variant,note,loso_mae_median_min,loso_mae_iqr_min,raw_mae_min,kalman_mae_min,rho,r2,loso_n_subjects
+lt2,v0011,linear,HRV,with_abs,победитель LT2,1.9025,0.9744,2.2468,2.504,0.911,0.817,18
+lt2,v0011,linear,EMG+NIRS+HRV,with_abs,мультимодальный LT2,1.914,0.8443,2.2835,2.4817,0.909,0.825,18
+lt2,v0107,ensemble,EMG+NIRS+HRV,with_abs,лучший NN — LT2,2.3839,1.3234,2.9603,3.1046,0.848,0.568,17
+lt1,v0011,linear,EMG+NIRS,with_abs,победитель LT1,2.112,3.2543,3.5172,3.5886,0.745,0.52,18
+lt1,v0011,linear,EMG+NIRS+HRV,with_abs,мультимодальный LT1,2.2293,1.9318,3.2867,3.3515,0.791,0.574,18
+lt1,v0107,ensemble,EMG+NIRS+HRV,noabs,лучший NN — LT1,2.7131,1.9614,3.7709,3.8112,0.78,0.166,18

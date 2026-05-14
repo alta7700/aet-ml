@@ -1,0 +1,6 @@
+system,mae_median,mae_mean,vs_generalist_delta,vs_generalist_p
+generalist,3.1452,3.9136,0.0,
+oracle_sym,2.9116,3.6953,0.5311,0.2462
+real_router_sym,3.1694,3.9708,0.4135,0.8986
+oracle_asym,2.9116,3.4175,0.1422,0.0342
+real_router_asym,2.1766,3.4585,0.1422,0.0745
