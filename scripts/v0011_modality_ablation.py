@@ -175,17 +175,36 @@ def _get_emg_raw_cols(df: pd.DataFrame) -> list[str]:
 
 def _add_subject_z(df: pd.DataFrame, cols: list[str],
                    prefix: str = "z_") -> tuple[pd.DataFrame, list[str]]:
-    """Per-subject z-нормировка колонок, создаёт новые колонки с prefix."""
+    """Per-subject z-нормировка по baseline (stage_index=0, 60 Вт).
+
+    mean и std считаются исключительно по окнам ступени покоя (stage_index=0),
+    затем применяются ко всем окнам субъекта — без look-ahead.
+    Если окон baseline нет, используется полная сессия (fallback).
+    """
     df = df.copy()
     z_cols = []
+
+    # Статистики только по первой ступени (60 Вт, stage_index=0)
+    baseline_mask = df["stage_index"] == 0
+    baseline_df   = df[baseline_mask]
+
     for col in cols:
         if col not in df.columns:
             continue
-        m = df.groupby("subject_id")[col].transform("mean")
-        s = df.groupby("subject_id")[col].transform("std")
+
+        if baseline_mask.any():
+            stats = baseline_df.groupby("subject_id")[col].agg(["mean", "std"])
+            m = df["subject_id"].map(stats["mean"])
+            s = df["subject_id"].map(stats["std"])
+        else:
+            # Fallback: полная сессия (не должно встречаться)
+            m = df.groupby("subject_id")[col].transform("mean")
+            s = df.groupby("subject_id")[col].transform("std")
+
         z_col = f"{prefix}{col}"
         df[z_col] = (df[col] - m) / (s + 1e-8)
         z_cols.append(z_col)
+
     return df, z_cols
 
 
@@ -241,11 +260,12 @@ def prepare_data(df_raw: pd.DataFrame,
 
     df = df.sort_values(["subject_id", "window_start_sec"]).reset_index(drop=True)
 
-    # Per-subject z-norm: EMG
+    # Per-subject z-norm по baseline (stage_index=0, 60 Вт) — без look-ahead.
+    # mean/std берутся только из окон первой ступени и применяются ко всей сессии.
     emg_raw = _get_emg_raw_cols(df)
     df, _ = _add_subject_z(df, emg_raw, prefix="z_")
 
-    # Per-subject z-norm: кинематика
+    # Per-subject z-norm кинематики по тому же baseline
     kin_present = [c for c in KINEMATICS_FEATURES if c in df.columns]
     df, _ = _add_subject_z(df, kin_present, prefix="z_")
 
