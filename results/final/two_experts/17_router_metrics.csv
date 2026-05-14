@@ -1,0 +1,12 @@
+feature,std_coef,abs_coef
+hrv_hr_baseline_bpm,-0.98,0.98
+body_fat_pct,-0.786,0.786
+age,0.74,0.74
+nirs_smo2_baseline_mean,0.593,0.593
+bmi,0.29,0.29
+phase_angle,-0.239,0.239
+hrv_rmssd_baseline_ms,-0.168,0.168
+weight,0.153,0.153
+emg_vl_dist_baseline_rms,0.101,0.101
+emg_vl_prox_baseline_rms,0.098,0.098
+height,-0.074,0.074

@@ -1,0 +1,11 @@
+system,mae_median,mae_mean,vs_generalist_delta,vs_generalist_p,threshold_tag
+generalist,3.1452,3.9136,0.0,,thr13
+oracle_sym,2.9116,3.6953,0.5311,0.2462,thr13
+real_router_sym,3.1694,3.9708,0.4135,0.8986,thr13
+oracle_asym,2.9116,3.4175,0.1422,0.0342,thr13
+real_router_asym,2.1766,3.4585,0.1422,0.0745,thr13
+generalist,3.1452,3.9136,0.0,,median_split
+oracle_sym,3.207,3.6619,0.2519,0.5226,median_split
+real_router_sym,3.0964,4.1735,0.1631,0.8317,median_split
+oracle_asym,3.0914,3.5682,0.0,0.1688,median_split
+real_router_asym,2.5504,3.8154,0.0,0.327,median_split
