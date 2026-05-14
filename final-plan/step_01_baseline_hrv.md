@@ -68,11 +68,29 @@ uv run python scripts/build_dataset_all.py --force --only emg_kinematics
 ---
 
 ## Отчёт о выполнении
-_Заполняется по факту выполнения._
 
-- Дата начала:
-- Дата завершения:
-- Что изменено:
-- Sanity-таблица:
-- Корреляция HR_baseline × time_to_lt2: ρ = , p =
-- Замечания:
+- **Дата**: 2026-05-14
+- **Что изменено**:
+  - `dataset_pipeline/hrv.py` — добавлена `compute_hrv_baseline(source_h5_path, baseline_start_sec, baseline_end_sec) → (hr_bpm, rmssd_ms)`. Минимальная валидная длительность baseline-записи `_MIN_BASELINE_RR_DURATION_SEC = 30 с`, иначе NaN. Применяется штатный `correct_rr_window`.
+  - `dataset_pipeline/emg_kinematics.py` — в `PhasedSession` добавлены поля `hrv_hr_baseline_bpm`, `hrv_rmssd_baseline_ms`; в `build_phased_session` вызывается `compute_hrv_baseline` на границах `result.normalization_stage`; в `_build_session_params_row` добавлены 2 колонки.
+  - `scripts/patch_session_params_hrv_baseline.py` — одноразовый скрипт обновления существующего `session_params.parquet` без пересборки тяжёлого `features_emg_kinematics.parquet`. Запускался один раз; в будущем `build_dataset_all.py` сам соберёт эти поля при `--force`.
+  - `dataset/session_params.parquet` — было `(19, 8)`, стало `(19, 10)`.
+
+- **Sanity по 18 валидным субъектам** (S015 → NaN, у него и так нет EMG/NIRS):
+  - `hrv_hr_baseline_bpm`: 65.9–133.6 (mean 96.4)
+  - `hrv_rmssd_baseline_ms`: 4.8–28.4 (mean 14.0)
+
+- **Корреляции (Spearman, n=18)**:
+  - HR_baseline × time_to_lt2: **ρ = −0.501, p = 0.034** ✓ ожидаемый знак, значимо
+  - RMSSD_baseline × time_to_lt2: ρ = +0.193, p = 0.44 (направление верное, не значимо при n=18)
+
+- **Разделение по порогу `time_to_lt2 > 13 мин`** (6 трен. vs 12 нетрен.):
+  - HR_baseline: 82.9 vs 103.2 bpm (Δ = 20 уд/мин — сильный разделяющий признак)
+  - RMSSD_baseline: 16.6 vs 13.5 мс
+
+- **Замечания**:
+  - S005 — выброс: HR=133 bpm, RMSSD=4.8 мс. Стресс на калибровке или артефакт; обработка штатным `correct_rr_window` его пропустила, в выборку входит. Проверить отдельно при анализе маршрутизатора.
+  - S015 остаётся NaN — он отсутствует в основном корпусе моделей.
+  - Признак HR_baseline уже сам по себе кандидат №1 в маршрутизатор шага 05.
+
+- **Следующий шаг**: step_02 — единый ranker по `summary_all_versions.csv`.

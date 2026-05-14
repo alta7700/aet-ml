@@ -169,6 +169,68 @@ def extract_hrv_features(
     }
 
 
+# ─────────────────────── Базальные HRV на калибровке 30 Вт ───────────────────────
+
+# Минимальная длительность валидной записи RR на baseline в секундах.
+# Меньше — считаем результат ненадёжным и возвращаем NaN.
+_MIN_BASELINE_RR_DURATION_SEC = 30.0
+
+
+def compute_hrv_baseline(
+    source_h5_path: Path,
+    baseline_start_sec: float,
+    baseline_end_sec: float,
+) -> tuple[float, float]:
+    """Возвращает (HR_mean_bpm, RMSSD_ms) на интервале калибровки 30 Вт.
+
+    Используется маршрутизатором «два эксперта»: базальная ЧСС и RMSSD
+    хорошо разделяют тренированных и нетренированных. Калибровочная стадия
+    30 Вт исключена из ML-окон, утечки нет.
+
+    Параметры
+    ----------
+    source_h5_path : Path
+        Путь к finaltest.h5.
+    baseline_start_sec, baseline_end_sec : float
+        Временной интервал стадии 30 Вт (тот же, что используется для
+        nirs_smo2_baseline_mean).
+
+    Возвращает
+    ----------
+    tuple[float, float]
+        (hr_bpm, rmssd_ms). NaN, если RR на baseline недостаточно или
+        канал отсутствует.
+    """
+    try:
+        rr_times_sec, rr_values_sec = load_rr_signal(source_h5_path)
+    except Exception:
+        return float("nan"), float("nan")
+
+    mask = (rr_times_sec >= baseline_start_sec) & (rr_times_sec <= baseline_end_sec)
+    rr_raw_ms = rr_values_sec[mask] * 1000.0
+
+    valid = np.isfinite(rr_raw_ms) & (rr_raw_ms >= _RR_MIN_MS) & (rr_raw_ms <= _RR_MAX_MS)
+    if not np.any(valid):
+        return float("nan"), float("nan")
+
+    # Применяем стандартную коррекцию артефактов (как в основном HRV-пайплайне).
+    rr_ms_corrected, _artifact_fraction = correct_rr_window(rr_raw_ms[valid])
+
+    if rr_ms_corrected.size < 2:
+        return float("nan"), float("nan")
+
+    # Длительность валидной записи — сумма RR в секундах.
+    total_duration_sec = float(np.sum(rr_ms_corrected)) / 1000.0
+    if total_duration_sec < _MIN_BASELINE_RR_DURATION_SEC:
+        return float("nan"), float("nan")
+
+    mean_rr_ms = float(np.mean(rr_ms_corrected))
+    hr_bpm = 60_000.0 / mean_rr_ms if mean_rr_ms > 0 else float("nan")
+    rmssd_ms = float(np.sqrt(np.mean(np.diff(rr_ms_corrected) ** 2)))
+
+    return hr_bpm, rmssd_ms
+
+
 def _all_hrv_feature_names() -> list[str]:
     """Возвращает список всех 7 имён HRV-признаков."""
     return [

@@ -26,6 +26,7 @@ from dataset_pipeline.common import (
     load_windows_table,
     save_parquet,
 )
+from dataset_pipeline.hrv import compute_hrv_baseline
 from methods.pedal_cycles import (
     DEFAULT_CALIBRATION_MARGIN_SEC,
     DEFAULT_CALIBRATION_TAIL_SEC,
@@ -83,6 +84,9 @@ class PhasedSession:
     emg_vl_prox_baseline_rms: float
     pca_axis: np.ndarray          # shape (3,) — первая главная компонента гироскопа
     nirs_smo2_baseline_mean: float
+    # Базальные HRV на калибровке 30 Вт (для маршрутизатора «два эксперта»)
+    hrv_hr_baseline_bpm: float
+    hrv_rmssd_baseline_ms: float
 
     # Кэш сигналов (только в памяти)
     cycles: tuple[CyclePhase, ...]
@@ -154,6 +158,13 @@ def build_phased_session(source_h5_path: Path, subject_id: str) -> PhasedSession
         normalization_end_sec=result.normalization_stage.end_sec,
     )
 
+    # Базальные HRV на той же ступени 30 Вт
+    hr_baseline_bpm, rmssd_baseline_ms = compute_hrv_baseline(
+        source_h5_path=source_h5_path,
+        baseline_start_sec=result.normalization_stage.start_sec,
+        baseline_end_sec=result.normalization_stage.end_sec,
+    )
+
     return PhasedSession(
         subject_id=subject_id,
         source_h5_path=source_h5_path,
@@ -161,6 +172,8 @@ def build_phased_session(source_h5_path: Path, subject_id: str) -> PhasedSession
         emg_vl_prox_baseline_rms=float(vl_prox_channel.baseline_rms),
         pca_axis=np.asarray(result.selected_sensor.pca_vector, dtype=float),
         nirs_smo2_baseline_mean=nirs_smo2_baseline_mean,
+        hrv_hr_baseline_bpm=hr_baseline_bpm,
+        hrv_rmssd_baseline_ms=rmssd_baseline_ms,
         cycles=result.cycles,
         emg_vl_dist_times=np.asarray(vl_dist_channel.timestamps_sec, dtype=float),
         emg_vl_dist_values=vl_dist_values,
@@ -810,6 +823,8 @@ def _build_session_params_row(session: PhasedSession) -> dict[str, object]:
         "pca_axis_y": float(session.pca_axis[1]),
         "pca_axis_z": float(session.pca_axis[2]),
         "nirs_smo2_baseline_mean": session.nirs_smo2_baseline_mean,
+        "hrv_hr_baseline_bpm": session.hrv_hr_baseline_bpm,
+        "hrv_rmssd_baseline_ms": session.hrv_rmssd_baseline_ms,
         "emg_sample_rate_hz": session.emg_sample_rate_hz,
     }
 
