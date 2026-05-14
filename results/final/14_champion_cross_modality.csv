@@ -1,0 +1,4 @@
+version,target,variant,fset_a,fset_b,n_paired,median_a,median_b,median_diff,p,verdict
+v0011,lt2,with_abs,HRV,EMG+NIRS+HRV,18,1.9025,1.914,-0.0976,0.9661,n.s.
+v0011,lt1,with_abs,EMG+NIRS,EMG+NIRS+HRV,18,2.112,2.2293,0.1009,0.4423,n.s.
+v0011,lt2,with_abs,HRV,EMG+NIRS,18,1.9025,2.8964,-0.7117,0.012,HRV
