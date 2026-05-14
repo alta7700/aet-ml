@@ -69,44 +69,56 @@ CRITERIA = [
 # ─────────────────────── Загрузка per-subject ───────────────────────
 
 def load_per_subject_v0011() -> pd.DataFrame:
-    """v0011 имеет схему (feature_set, target, model, subject_id, mae_min, r2).
+    """Загружает per-subject v0011, объединяя per_subject_full.csv (lt1+lt2 best inner)
+    с per_subject.csv (для определения inner_model по lt2).
 
-    Сворачиваем по `model` так: для каждой (target, fset) оставляем тот
-    внутренний model, у которого loso_mae_median минимален. Variant в v0011
-    не различается per-subject, привязываем одну выборку к обеим строкам
-    summary (with_abs/noabs).
+    Возврат: схема (version, target, feature_set, subject_id, mae_min, r2, inner_model).
     """
-    df = pd.read_csv(RESULTS / "v0011" / "per_subject.csv")
-    df["version"] = "v0011"
+    full_path = RESULTS / "v0011" / "per_subject_full.csv"
+    if full_path.exists():
+        df_full = pd.read_csv(full_path)
+        df_full["version"] = "v0011"
+    else:
+        df_full = pd.DataFrame()
 
-    # Для каждой (target, fset, model) считаем median(mae_min).
-    g = df.groupby(["target", "feature_set", "model"], as_index=False)["mae_min"].median()
-    g = g.rename(columns={"mae_min": "median_mae_per_model"})
-    # Выбираем лучший model на (target, fset).
-    winners = g.loc[g.groupby(["target", "feature_set"])["median_mae_per_model"].idxmin()]
-    winners = winners[["target", "feature_set", "model"]].rename(columns={"model": "inner_model"})
+    # Определяем inner_model для каждой (target, feature_set) из старого per_subject.csv
+    # (там есть колонка 'model' с зоопарком). Берём по медиане MAE.
+    old = pd.read_csv(RESULTS / "v0011" / "per_subject.csv")
+    g = old.groupby(["target", "feature_set", "model"], as_index=False)["mae_min"].median()
+    winners = (g.loc[g.groupby(["target", "feature_set"])["mae_min"].idxmin()]
+                [["target", "feature_set", "model"]]
+                .rename(columns={"model": "inner_model"}))
 
-    # Оставляем только строки выбранного model.
-    df = df.merge(winners, on=["target", "feature_set"])
-    df = df[df["model"] == df["inner_model"]].copy()
-    return df[["version", "target", "feature_set", "subject_id",
-               "mae_min", "r2", "inner_model"]]
+    if df_full.empty:
+        # Fallback на старый: использовать выборку winning model.
+        df = old.merge(winners.rename(columns={"inner_model": "model"}),
+                       on=["target", "feature_set", "model"])
+        df["version"] = "v0011"
+        df["inner_model"] = df["model"]
+        return df[["version", "target", "feature_set", "subject_id",
+                   "mae_min", "r2", "inner_model"]]
+
+    out = df_full.merge(winners, on=["target", "feature_set"], how="left")
+    return out[["version", "target", "feature_set", "subject_id",
+                "mae_min", "r2", "inner_model"]]
 
 
 def load_per_subject_nn(version: str) -> pd.DataFrame:
     """NN-схема: (variant, feature_set, target, subject_id, mae_min, r2).
 
-    v0107 — ансамбль с тремя предсказаниями (ens/tcn/lin); используем mae_ens_min
-    как mae_min и помечаем inner_model = "ensemble". r2 в v0107 отсутствует → NaN.
+    Приоритет: per_subject_full.csv (содержит lt1+lt2). Если его нет —
+    fallback на per_subject.csv.
     """
-    df = pd.read_csv(RESULTS / version / "per_subject.csv")
-    df["version"] = version
-    if version == "v0107":
-        df["mae_min"] = df["mae_ens_min"]
-        df["r2"] = np.nan
-        df["inner_model"] = "ensemble"
+    full_path = RESULTS / version / "per_subject_full.csv"
+    if full_path.exists():
+        df = pd.read_csv(full_path)
     else:
-        df["inner_model"] = ""
+        df = pd.read_csv(RESULTS / version / "per_subject.csv")
+        if version == "v0107":
+            df["mae_min"] = df["mae_ens_min"]
+            df["r2"] = np.nan
+    df["version"] = version
+    df["inner_model"] = "ensemble" if version == "v0107" else ""
     return df[["version", "variant", "target", "feature_set", "subject_id",
                "mae_min", "r2", "inner_model"]]
 

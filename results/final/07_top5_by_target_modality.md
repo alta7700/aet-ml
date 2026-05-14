@@ -10,11 +10,11 @@ K = 5. Критериев: 6. ↑ — меньше лучше, ↓ — боль�
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  | 0.437 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  | 0.437 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        5.1508 |           5.0756 | 0.387 | 0.106 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        5.2686 |           5.1909 | 0.484 | 0.064 |                 nan |               nan |
-| v0104     | noabs     | lstm     |           nan |               nan |            nan |        5.2778 |           5.176  | 0.45  | 0.023 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  | 0.437 |               0.056 |                18 |
+| v0011     | with_abs  | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  | 0.437 |               0.056 |                18 |
+| v0106b    | noabs     | wavelet  |           nan |            4.5716 |         1.5022 |        5.1508 |           5.0756 | 0.387 | 0.106 |               0.556 |                18 |
+| v0106a    | with_abs  | wavelet  |           nan |            4.7686 |         1.6102 |        5.2686 |           5.1909 | 0.484 | 0.064 |               0.556 |                18 |
+| v0104     | noabs     | lstm     |           nan |            4.3825 |         1.7864 |        5.2778 |           5.176  | 0.45  | 0.023 |               0.611 |                18 |
 
 
 
@@ -22,33 +22,47 @@ K = 5. Критериев: 6. ↑ — меньше лучше, ↓ — боль�
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  | 0.437 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  | 0.437 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        5.1508 |           5.0756 | 0.387 | 0.106 |                 nan |               nan |
-| v0104     | noabs     | lstm     |           nan |               nan |            nan |        5.2778 |           5.176  | 0.45  | 0.023 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        5.2686 |           5.1909 | 0.484 | 0.064 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  | 0.437 |               0.056 |                18 |
+| v0011     | with_abs  | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  | 0.437 |               0.056 |                18 |
+| v0106b    | noabs     | wavelet  |           nan |            4.5716 |         1.5022 |        5.1508 |           5.0756 | 0.387 | 0.106 |               0.556 |                18 |
+| v0104     | noabs     | lstm     |           nan |            4.3825 |         1.7864 |        5.2778 |           5.176  | 0.45  | 0.023 |               0.611 |                18 |
+| v0106a    | with_abs  | wavelet  |           nan |            4.7686 |         1.6102 |        5.2686 |           5.1909 | 0.484 | 0.064 |               0.556 |                18 |
 
 
 
 ### loso_mae_median ↑
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  |  0.437 |               0.056 |                18 |
+| v0011     | with_abs  | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  |  0.437 |               0.056 |                18 |
+| v0104     | noabs     | lstm     |           nan |            4.3825 |         1.7864 |        5.2778 |           5.176  | 0.45  |  0.023 |               0.611 |                18 |
+| v0101     | with_abs  | lstm     |           nan |            4.4756 |         1.9097 |        5.4044 |           5.256  | 0.58  | -0.037 |               0.444 |                18 |
+| v0104     | with_abs  | lstm     |           nan |            4.4799 |         1.8311 |        5.3827 |           5.2648 | 0.248 | -0.01  |               0.556 |                18 |
+
 
 
 ### loso_mae_std ↑ (стабильность)
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |    rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|-------:|-------:|--------------------:|------------------:|
+| v0106b    | noabs     | wavelet  |           nan |            4.5716 |         1.5022 |        5.1508 |           5.0756 |  0.387 |  0.106 |               0.556 |                18 |
+| v0106a    | with_abs  | wavelet  |           nan |            4.7686 |         1.6102 |        5.2686 |           5.1909 |  0.484 |  0.064 |               0.556 |                18 |
+| v0105     | noabs     | tcn      |           nan |            4.811  |         1.6107 |        5.6217 |           5.6161 | -0.32  | -0.047 |               1     |                18 |
+| v0105     | with_abs  | tcn      |           nan |            4.87   |         1.6141 |        5.6277 |           5.6211 | -0.404 | -0.052 |               1     |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.6393 |         1.6321 |        5.3244 |           5.2299 |  0.277 |  0.057 |               0.667 |                18 |
+
 
 
 ### rho ↓
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  |  0.437 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  |  0.437 |                 nan |               nan |
-| v0101     | with_abs  | lstm     |           nan |               nan |            nan |        5.4044 |           5.256  | 0.58  | -0.037 |                 nan |               nan |
-| v0101     | noabs     | lstm     |           nan |               nan |            nan |        5.4065 |           5.2568 | 0.555 | -0.039 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        5.2686 |           5.1909 | 0.484 |  0.064 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  |  0.437 |               0.056 |                18 |
+| v0011     | with_abs  | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  |  0.437 |               0.056 |                18 |
+| v0101     | with_abs  | lstm     |           nan |            4.4756 |         1.9097 |        5.4044 |           5.256  | 0.58  | -0.037 |               0.444 |                18 |
+| v0101     | noabs     | lstm     |           nan |            4.5606 |         1.9173 |        5.4065 |           5.2568 | 0.555 | -0.039 |               0.5   |                18 |
+| v0106a    | with_abs  | wavelet  |           nan |            4.7686 |         1.6102 |        5.2686 |           5.1909 | 0.484 |  0.064 |               0.556 |                18 |
 
 
 
@@ -56,11 +70,11 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  | 0.437 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.7667 |           3.8528 | 0.71  | 0.437 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        5.1508 |           5.0756 | 0.387 | 0.106 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        5.2686 |           5.1909 | 0.484 | 0.064 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        5.3244 |           5.2299 | 0.277 | 0.057 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  | 0.437 |               0.056 |                18 |
+| v0011     | with_abs  | linear   |           nan |            2.9425 |         1.9975 |        3.7667 |           3.8528 | 0.71  | 0.437 |               0.056 |                18 |
+| v0106b    | noabs     | wavelet  |           nan |            4.5716 |         1.5022 |        5.1508 |           5.0756 | 0.387 | 0.106 |               0.556 |                18 |
+| v0106a    | with_abs  | wavelet  |           nan |            4.7686 |         1.6102 |        5.2686 |           5.1909 | 0.484 | 0.064 |               0.556 |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.6393 |         1.6321 |        5.3244 |           5.2299 | 0.277 | 0.057 |               0.667 |                18 |
 
 
 
@@ -71,11 +85,11 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.5172 |           3.5886 | 0.745 | 0.52  |                 nan |               nan |
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.6416 |           3.7108 | 0.728 | 0.489 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9544 |           4.9066 | 0.435 | 0.155 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        5.0262 |           4.9823 | 0.429 | 0.145 |                 nan |               nan |
-| v0104     | with_abs  | lstm     |           nan |               nan |            nan |        5.1385 |           5.0732 | 0.601 | 0.08  |                 nan |               nan |
+| v0011     | with_abs  | linear   |           nan |            2.112  |         1.8667 |        3.5172 |           3.5886 | 0.745 | 0.52  |               0.056 |                18 |
+| v0011     | noabs     | linear   |           nan |            2.112  |         1.8667 |        3.6416 |           3.7108 | 0.728 | 0.489 |               0.056 |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.5404 |         1.5209 |        4.9544 |           4.9066 | 0.435 | 0.155 |               0.444 |                18 |
+| v0106b    | noabs     | wavelet  |           nan |            4.7754 |         1.4623 |        5.0262 |           4.9823 | 0.429 | 0.145 |               0.556 |                18 |
+| v0104     | with_abs  | lstm     |           nan |            4.3175 |         1.7435 |        5.1385 |           5.0732 | 0.601 | 0.08  |               0.5   |                18 |
 
 
 
@@ -83,33 +97,47 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.5172 |           3.5886 | 0.745 | 0.52  |                 nan |               nan |
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.6416 |           3.7108 | 0.728 | 0.489 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9544 |           4.9066 | 0.435 | 0.155 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        5.0262 |           4.9823 | 0.429 | 0.145 |                 nan |               nan |
-| v0104     | with_abs  | lstm     |           nan |               nan |            nan |        5.1385 |           5.0732 | 0.601 | 0.08  |                 nan |               nan |
+| v0011     | with_abs  | linear   |           nan |            2.112  |         1.8667 |        3.5172 |           3.5886 | 0.745 | 0.52  |               0.056 |                18 |
+| v0011     | noabs     | linear   |           nan |            2.112  |         1.8667 |        3.6416 |           3.7108 | 0.728 | 0.489 |               0.056 |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.5404 |         1.5209 |        4.9544 |           4.9066 | 0.435 | 0.155 |               0.444 |                18 |
+| v0106b    | noabs     | wavelet  |           nan |            4.7754 |         1.4623 |        5.0262 |           4.9823 | 0.429 | 0.145 |               0.556 |                18 |
+| v0104     | with_abs  | lstm     |           nan |            4.3175 |         1.7435 |        5.1385 |           5.0732 | 0.601 | 0.08  |               0.5   |                18 |
 
 
 
 ### loso_mae_median ↑
 
-_нет данных_
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            2.112  |         1.8667 |        3.6416 |           3.7108 | 0.728 |  0.489 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | nan           |            2.112  |         1.8667 |        3.5172 |           3.5886 | 0.745 |  0.52  |               0.056 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            4.0585 |         3.1046 |        5.1798 |           5.2054 | 0.587 | -0.562 |               0.389 |                18 |
+| v0104     | noabs     | lstm     | nan           |            4.2898 |         1.766  |        5.2107 |           5.1119 | 0.548 |  0.062 |               0.5   |                18 |
+| v0104     | with_abs  | lstm     | nan           |            4.3175 |         1.7435 |        5.1385 |           5.0732 | 0.601 |  0.08  |               0.5   |                18 |
+
 
 
 ### loso_mae_std ↑ (стабильность)
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |    rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|-------:|-------:|--------------------:|------------------:|
+| v0106b    | noabs     | wavelet  |           nan |            4.7754 |         1.4623 |        5.0262 |           4.9823 |  0.429 |  0.145 |               0.556 |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.5404 |         1.5209 |        4.9544 |           4.9066 |  0.435 |  0.155 |               0.444 |                18 |
+| v0106a    | noabs     | wavelet  |           nan |            4.7944 |         1.582  |        5.2628 |           5.2224 |  0.465 |  0.073 |               0.556 |                18 |
+| v0105     | with_abs  | tcn      |           nan |            4.8376 |         1.5857 |        5.6119 |           5.6097 | -0.378 | -0.042 |               1     |                18 |
+| v0105     | noabs     | tcn      |           nan |            4.835  |         1.601  |        5.6483 |           5.6436 | -0.451 | -0.056 |               1     |                18 |
+
 
 
 ### rho ↓
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.5172 |           3.5886 | 0.745 |  0.52  |                 nan |               nan |
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.6416 |           3.7108 | 0.728 |  0.489 |                 nan |               nan |
-| v0101     | with_abs  | lstm     |           nan |               nan |            nan |        5.3149 |           5.1811 | 0.665 |  0.012 |                 nan |               nan |
-| v0101     | noabs     | lstm     |           nan |               nan |            nan |        5.3497 |           5.2123 | 0.633 | -0.004 |                 nan |               nan |
-| v0104     | with_abs  | lstm     |           nan |               nan |            nan |        5.1385 |           5.0732 | 0.601 |  0.08  |                 nan |               nan |
+| v0011     | with_abs  | linear   |           nan |            2.112  |         1.8667 |        3.5172 |           3.5886 | 0.745 |  0.52  |               0.056 |                18 |
+| v0011     | noabs     | linear   |           nan |            2.112  |         1.8667 |        3.6416 |           3.7108 | 0.728 |  0.489 |               0.056 |                18 |
+| v0101     | with_abs  | lstm     |           nan |            4.5657 |         1.7879 |        5.3149 |           5.1811 | 0.665 |  0.012 |               0.444 |                18 |
+| v0101     | noabs     | lstm     |           nan |            4.5415 |         1.8443 |        5.3497 |           5.2123 | 0.633 | -0.004 |               0.389 |                18 |
+| v0104     | with_abs  | lstm     |           nan |            4.3175 |         1.7435 |        5.1385 |           5.0732 | 0.601 |  0.08  |               0.5   |                18 |
 
 
 
@@ -117,11 +145,11 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.5172 |           3.5886 | 0.745 | 0.52  |                 nan |               nan |
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.6416 |           3.7108 | 0.728 | 0.489 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9544 |           4.9066 | 0.435 | 0.155 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        5.0262 |           4.9823 | 0.429 | 0.145 |                 nan |               nan |
-| v0104     | with_abs  | lstm     |           nan |               nan |            nan |        5.1385 |           5.0732 | 0.601 | 0.08  |                 nan |               nan |
+| v0011     | with_abs  | linear   |           nan |            2.112  |         1.8667 |        3.5172 |           3.5886 | 0.745 | 0.52  |               0.056 |                18 |
+| v0011     | noabs     | linear   |           nan |            2.112  |         1.8667 |        3.6416 |           3.7108 | 0.728 | 0.489 |               0.056 |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.5404 |         1.5209 |        4.9544 |           4.9066 | 0.435 | 0.155 |               0.444 |                18 |
+| v0106b    | noabs     | wavelet  |           nan |            4.7754 |         1.4623 |        5.0262 |           4.9823 | 0.429 | 0.145 |               0.556 |                18 |
+| v0104     | with_abs  | lstm     |           nan |            4.3175 |         1.7435 |        5.1385 |           5.0732 | 0.601 | 0.08  |               0.5   |                18 |
 
 
 
@@ -130,59 +158,73 @@ _нет данных_
 
 ### raw_mae_min ↑
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.2626 |           3.3112 | 0.792 | 0.584 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.2867 |           3.3515 | 0.791 | 0.574 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        3.7709 |           3.8112 | 0.78  | 0.166 |                 nan |               nan |
-| v0107     | with_abs  | ensemble |           nan |               nan |            nan |        4.4935 |           4.5385 | 0.686 | 0.134 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        4.5684 |           4.5663 | 0.585 | 0.269 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            2.2293 |         1.9752 |        3.2626 |           3.3112 | 0.792 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | nan           |            2.2293 |         1.9752 |        3.2867 |           3.3515 | 0.791 | 0.574 |               0.056 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            2.7131 |         2.4722 |        3.7709 |           3.8112 | 0.78  | 0.166 |               0.278 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.6185 |         2.9463 |        4.4935 |           4.5385 | 0.686 | 0.134 |               0.333 |                18 |
+| v0106b    | with_abs  | wavelet  | nan           |            4.0664 |         1.6137 |        4.5684 |           4.5663 | 0.585 | 0.269 |               0.333 |                18 |
 
 
 
 ### kalman_mae_min ↑
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.2626 |           3.3112 | 0.792 | 0.584 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.2867 |           3.3515 | 0.791 | 0.574 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        3.7709 |           3.8112 | 0.78  | 0.166 |                 nan |               nan |
-| v0107     | with_abs  | ensemble |           nan |               nan |            nan |        4.4935 |           4.5385 | 0.686 | 0.134 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        4.5684 |           4.5663 | 0.585 | 0.269 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            2.2293 |         1.9752 |        3.2626 |           3.3112 | 0.792 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | nan           |            2.2293 |         1.9752 |        3.2867 |           3.3515 | 0.791 | 0.574 |               0.056 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            2.7131 |         2.4722 |        3.7709 |           3.8112 | 0.78  | 0.166 |               0.278 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.6185 |         2.9463 |        4.4935 |           4.5385 | 0.686 | 0.134 |               0.333 |                18 |
+| v0106b    | with_abs  | wavelet  | nan           |            4.0664 |         1.6137 |        4.5684 |           4.5663 | 0.585 | 0.269 |               0.333 |                18 |
 
 
 
 ### loso_mae_median ↑
 
-_нет данных_
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            2.2293 |         1.9752 |        3.2626 |           3.3112 | 0.792 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | nan           |            2.2293 |         1.9752 |        3.2867 |           3.3515 | 0.791 | 0.574 |               0.056 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            2.7131 |         2.4722 |        3.7709 |           3.8112 | 0.78  | 0.166 |               0.278 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.6185 |         2.9463 |        4.4935 |           4.5385 | 0.686 | 0.134 |               0.333 |                18 |
+| v0106b    | with_abs  | wavelet  | nan           |            4.0664 |         1.6137 |        4.5684 |           4.5663 | 0.585 | 0.269 |               0.333 |                18 |
+
 
 
 ### loso_mae_std ↑ (стабильность)
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |    rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|-------:|-------:|--------------------:|------------------:|
+| v0106b    | noabs     | wavelet  |           nan |            4.3178 |         1.5879 |        4.6857 |           4.6813 |  0.574 |  0.239 |               0.333 |                18 |
+| v0105     | with_abs  | tcn      |           nan |            4.8584 |         1.5976 |        5.6186 |           5.6135 | -0.371 | -0.047 |               1     |                18 |
+| v0105     | noabs     | tcn      |           nan |            4.8456 |         1.5987 |        5.6192 |           5.6187 | -0.402 | -0.049 |               1     |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.0664 |         1.6137 |        4.5684 |           4.5663 |  0.585 |  0.269 |               0.333 |                18 |
+| v0106c    | noabs     | wavelet  |           nan |            4.6045 |         1.6463 |        5.3718 |           5.3393 |  0.489 |  0.026 |               0.667 |                18 |
+
 
 
 ### rho ↓
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.2626 |           3.3112 | 0.792 | 0.584 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.2867 |           3.3515 | 0.791 | 0.574 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        3.7709 |           3.8112 | 0.78  | 0.166 |                 nan |               nan |
-| v0107     | with_abs  | ensemble |           nan |               nan |            nan |        4.4935 |           4.5385 | 0.686 | 0.134 |                 nan |               nan |
-| v0101     | with_abs  | lstm     |           nan |               nan |            nan |        5.3341 |           5.2103 | 0.66  | 0.011 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            2.2293 |         1.9752 |        3.2626 |           3.3112 | 0.792 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | nan           |            2.2293 |         1.9752 |        3.2867 |           3.3515 | 0.791 | 0.574 |               0.056 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            2.7131 |         2.4722 |        3.7709 |           3.8112 | 0.78  | 0.166 |               0.278 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.6185 |         2.9463 |        4.4935 |           4.5385 | 0.686 | 0.134 |               0.333 |                18 |
+| v0101     | with_abs  | lstm     | nan           |            4.5351 |         1.8382 |        5.3341 |           5.2103 | 0.66  | 0.011 |               0.389 |                18 |
 
 
 
 ### r2 ↓
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.2626 |           3.3112 | 0.792 | 0.584 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        3.2867 |           3.3515 | 0.791 | 0.574 |                 nan |               nan |
-| v0106b    | with_abs  | wavelet  |           nan |               nan |            nan |        4.5684 |           4.5663 | 0.585 | 0.269 |                 nan |               nan |
-| v0106b    | noabs     | wavelet  |           nan |               nan |            nan |        4.6857 |           4.6813 | 0.574 | 0.239 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        3.7709 |           3.8112 | 0.78  | 0.166 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            2.2293 |         1.9752 |        3.2626 |           3.3112 | 0.792 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | nan           |            2.2293 |         1.9752 |        3.2867 |           3.3515 | 0.791 | 0.574 |               0.056 |                18 |
+| v0106b    | with_abs  | wavelet  | nan           |            4.0664 |         1.6137 |        4.5684 |           4.5663 | 0.585 | 0.269 |               0.333 |                18 |
+| v0106b    | noabs     | wavelet  | nan           |            4.3178 |         1.5879 |        4.6857 |           4.6813 | 0.574 | 0.239 |               0.333 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            2.7131 |         2.4722 |        3.7709 |           3.8112 | 0.78  | 0.166 |               0.278 |                18 |
 
 
 
@@ -193,8 +235,8 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        4.0095 |           4.1097 | 0.665 | 0.391 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.0142 |           4.1424 | 0.654 | 0.379 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            3.5103 |         2.0107 |        4.0095 |           4.1097 | 0.665 | 0.391 |               0.167 |                18 |
+| v0011     | with_abs  | linear   |           nan |            3.5103 |         2.0107 |        4.0142 |           4.1424 | 0.654 | 0.379 |               0.167 |                18 |
 
 
 
@@ -202,27 +244,35 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        4.0095 |           4.1097 | 0.665 | 0.391 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.0142 |           4.1424 | 0.654 | 0.379 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            3.5103 |         2.0107 |        4.0095 |           4.1097 | 0.665 | 0.391 |               0.167 |                18 |
+| v0011     | with_abs  | linear   |           nan |            3.5103 |         2.0107 |        4.0142 |           4.1424 | 0.654 | 0.379 |               0.167 |                18 |
 
 
 
 ### loso_mae_median ↑
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | with_abs  | linear   |           nan |            3.5103 |         2.0107 |        4.0142 |           4.1424 | 0.654 | 0.379 |               0.167 |                18 |
+| v0011     | noabs     | linear   |           nan |            3.5103 |         2.0107 |        4.0095 |           4.1097 | 0.665 | 0.391 |               0.167 |                18 |
+
 
 
 ### loso_mae_std ↑ (стабильность)
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | with_abs  | linear   |           nan |            3.5103 |         2.0107 |        4.0142 |           4.1424 | 0.654 | 0.379 |               0.167 |                18 |
+| v0011     | noabs     | linear   |           nan |            3.5103 |         2.0107 |        4.0095 |           4.1097 | 0.665 | 0.391 |               0.167 |                18 |
+
 
 
 ### rho ↓
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        4.0095 |           4.1097 | 0.665 | 0.391 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.0142 |           4.1424 | 0.654 | 0.379 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            3.5103 |         2.0107 |        4.0095 |           4.1097 | 0.665 | 0.391 |               0.167 |                18 |
+| v0011     | with_abs  | linear   |           nan |            3.5103 |         2.0107 |        4.0142 |           4.1424 | 0.654 | 0.379 |               0.167 |                18 |
 
 
 
@@ -230,8 +280,8 @@ _нет данных_
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        4.0095 |           4.1097 | 0.665 | 0.391 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.0142 |           4.1424 | 0.654 | 0.379 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            3.5103 |         2.0107 |        4.0095 |           4.1097 | 0.665 | 0.391 |               0.167 |                18 |
+| v0011     | with_abs  | linear   |           nan |            3.5103 |         2.0107 |        4.0142 |           4.1424 | 0.654 | 0.379 |               0.167 |                18 |
 
 
 
@@ -240,59 +290,73 @@ _нет данных_
 
 ### raw_mae_min ↑
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.9978 |           4.0737 | 0.736 | 0.444 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.1421 |           4.1327 | 0.719 | 0.371 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        4.6622 |           4.7261 | 0.613 | 0.177 |                 nan |               nan |
-| v0107     | with_abs  | ensemble |           nan |               nan |            nan |        4.9151 |           4.9542 | 0.593 | 0.111 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9925 |           4.9702 | 0.662 | 0.126 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            3.6161 |         2.0263 |        3.9978 |           4.0737 | 0.736 | 0.444 |               0.333 |                18 |
+| v0011     | with_abs  | linear   | nan           |            3.6161 |         2.0263 |        4.1421 |           4.1327 | 0.719 | 0.371 |               0.333 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            3.6158 |         2.9038 |        4.6622 |           4.7261 | 0.613 | 0.177 |               0.222 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.8006 |         3.0444 |        4.9151 |           4.9542 | 0.593 | 0.111 |               0.278 |                18 |
+| v0106a    | with_abs  | wavelet  | nan           |            4.122  |         1.7339 |        4.9925 |           4.9702 | 0.662 | 0.126 |               0.333 |                18 |
 
 
 
 ### kalman_mae_min ↑
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.9978 |           4.0737 | 0.736 | 0.444 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.1421 |           4.1327 | 0.719 | 0.371 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        4.6622 |           4.7261 | 0.613 | 0.177 |                 nan |               nan |
-| v0107     | with_abs  | ensemble |           nan |               nan |            nan |        4.9151 |           4.9542 | 0.593 | 0.111 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9925 |           4.9702 | 0.662 | 0.126 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            3.6161 |         2.0263 |        3.9978 |           4.0737 | 0.736 | 0.444 |               0.333 |                18 |
+| v0011     | with_abs  | linear   | nan           |            3.6161 |         2.0263 |        4.1421 |           4.1327 | 0.719 | 0.371 |               0.333 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            3.6158 |         2.9038 |        4.6622 |           4.7261 | 0.613 | 0.177 |               0.222 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.8006 |         3.0444 |        4.9151 |           4.9542 | 0.593 | 0.111 |               0.278 |                18 |
+| v0106a    | with_abs  | wavelet  | nan           |            4.122  |         1.7339 |        4.9925 |           4.9702 | 0.662 | 0.126 |               0.333 |                18 |
 
 
 
 ### loso_mae_median ↑
 
-_нет данных_
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0107     | noabs     | ensemble | ensemble      |            3.6158 |         2.9038 |        4.6622 |           4.7261 | 0.613 | 0.177 |               0.222 |                18 |
+| v0011     | noabs     | linear   | nan           |            3.6161 |         2.0263 |        3.9978 |           4.0737 | 0.736 | 0.444 |               0.333 |                18 |
+| v0011     | with_abs  | linear   | nan           |            3.6161 |         2.0263 |        4.1421 |           4.1327 | 0.719 | 0.371 |               0.333 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.8006 |         3.0444 |        4.9151 |           4.9542 | 0.593 | 0.111 |               0.278 |                18 |
+| v0106a    | with_abs  | wavelet  | nan           |            4.122  |         1.7339 |        4.9925 |           4.9702 | 0.662 | 0.126 |               0.333 |                18 |
+
 
 
 ### loso_mae_std ↑ (стабильность)
 
-_нет данных_
+| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |    rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|-------:|-------:|--------------------:|------------------:|
+| v0105     | noabs     | tcn      |           nan |            4.8287 |         1.6002 |        5.546  |           5.5293 | -0.218 | -0.028 |               0.944 |                18 |
+| v0105     | with_abs  | tcn      |           nan |            4.8923 |         1.6204 |        5.5984 |           5.5759 | -0.292 | -0.045 |               1     |                18 |
+| v0106b    | with_abs  | wavelet  |           nan |            4.4423 |         1.6797 |        5.1836 |           5.1025 |  0.43  |  0.053 |               0.556 |                18 |
+| v0106c    | with_abs  | wavelet  |           nan |            4.5872 |         1.6969 |        5.3572 |           5.3082 |  0.583 |  0.02  |               0.444 |                18 |
+| v0106a    | noabs     | wavelet  |           nan |            4.3158 |         1.6995 |        5.0776 |           5.0526 |  0.581 |  0.101 |               0.333 |                18 |
+
 
 
 ### rho ↓
 
 | version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.9978 |           4.0737 | 0.736 |  0.444 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.1421 |           4.1327 | 0.719 |  0.371 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9925 |           4.9702 | 0.662 |  0.126 |                 nan |               nan |
-| v0101     | with_abs  | lstm     |           nan |               nan |            nan |        5.4365 |           5.2754 | 0.619 | -0.021 |                 nan |               nan |
-| v0101     | noabs     | lstm     |           nan |               nan |            nan |        5.4396 |           5.293  | 0.615 | -0.026 |                 nan |               nan |
+| v0011     | noabs     | linear   |           nan |            3.6161 |         2.0263 |        3.9978 |           4.0737 | 0.736 |  0.444 |               0.333 |                18 |
+| v0011     | with_abs  | linear   |           nan |            3.6161 |         2.0263 |        4.1421 |           4.1327 | 0.719 |  0.371 |               0.333 |                18 |
+| v0106a    | with_abs  | wavelet  |           nan |            4.122  |         1.7339 |        4.9925 |           4.9702 | 0.662 |  0.126 |               0.333 |                18 |
+| v0101     | with_abs  | lstm     |           nan |            4.6769 |         1.743  |        5.4365 |           5.2754 | 0.619 | -0.021 |               0.444 |                18 |
+| v0101     | noabs     | lstm     |           nan |            4.6506 |         1.7807 |        5.4396 |           5.293  | 0.615 | -0.026 |               0.5   |                18 |
 
 
 
 ### r2 ↓
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   |           nan |               nan |            nan |        3.9978 |           4.0737 | 0.736 | 0.444 |                 nan |               nan |
-| v0011     | with_abs  | linear   |           nan |               nan |            nan |        4.1421 |           4.1327 | 0.719 | 0.371 |                 nan |               nan |
-| v0107     | noabs     | ensemble |           nan |               nan |            nan |        4.6622 |           4.7261 | 0.613 | 0.177 |                 nan |               nan |
-| v0106a    | with_abs  | wavelet  |           nan |               nan |            nan |        4.9925 |           4.9702 | 0.662 | 0.126 |                 nan |               nan |
-| v0107     | with_abs  | ensemble |           nan |               nan |            nan |        4.9151 |           4.9542 | 0.593 | 0.111 |                 nan |               nan |
+| version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | nan           |            3.6161 |         2.0263 |        3.9978 |           4.0737 | 0.736 | 0.444 |               0.333 |                18 |
+| v0011     | with_abs  | linear   | nan           |            3.6161 |         2.0263 |        4.1421 |           4.1327 | 0.719 | 0.371 |               0.333 |                18 |
+| v0107     | noabs     | ensemble | ensemble      |            3.6158 |         2.9038 |        4.6622 |           4.7261 | 0.613 | 0.177 |               0.222 |                18 |
+| v0106a    | with_abs  | wavelet  | nan           |            4.122  |         1.7339 |        4.9925 |           4.9702 | 0.662 | 0.126 |               0.333 |                18 |
+| v0107     | with_abs  | ensemble | ensemble      |            3.8006 |         3.0444 |        4.9151 |           4.9542 | 0.593 | 0.111 |               0.278 |                18 |
 
 
 
@@ -303,8 +367,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
 | v0106b    | with_abs  | wavelet  | nan             |            4.7364 |         1.3614 |        5.0247 |           5.0365 | 0.372 |  0.134 |               0.647 |                17 |
 | v0106b    | noabs     | wavelet  | nan             |            4.9822 |         1.4766 |        5.1461 |           5.1626 | 0.317 |  0.09  |               0.647 |                17 |
 | v0107     | with_abs  | ensemble | ensemble        |            3.8425 |         2.9898 |        5.3482 |           5.3113 | 0.538 | -0.913 |               0     |                17 |
@@ -315,8 +379,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
 | v0106b    | with_abs  | wavelet  | nan             |            4.7364 |         1.3614 |        5.0247 |           5.0365 | 0.372 |  0.134 |               0.647 |                17 |
 | v0106b    | noabs     | wavelet  | nan             |            4.9822 |         1.4766 |        5.1461 |           5.1626 | 0.317 |  0.09  |               0.647 |                17 |
 | v0107     | with_abs  | ensemble | ensemble        |            3.8425 |         2.9898 |        5.3482 |           5.3113 | 0.538 | -0.913 |               0     |                17 |
@@ -327,8 +391,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
 | v0107     | noabs     | ensemble | ensemble        |            3.7184 |         3.0048 |        5.357  |           5.3254 | 0.534 | -0.868 |               0     |                17 |
 | v0107     | with_abs  | ensemble | ensemble        |            3.8425 |         2.9898 |        5.3482 |           5.3113 | 0.538 | -0.913 |               0     |                17 |
 | v0106a    | noabs     | wavelet  | nan             |            4.4135 |         1.819  |        5.5576 |           5.7659 | 0.414 | -0.175 |               0.706 |                17 |
@@ -351,8 +415,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
 | v0101     | noabs     | lstm     | nan             |            4.7562 |         2.029  |        5.9187 |           6.1408 | 0.557 | -0.317 |               0.833 |                18 |
 | v0107     | with_abs  | ensemble | ensemble        |            3.8425 |         2.9898 |        5.3482 |           5.3113 | 0.538 | -0.913 |               0     |                17 |
 | v0107     | noabs     | ensemble | ensemble        |            3.7184 |         3.0048 |        5.357  |           5.3254 | 0.534 | -0.868 |               0     |                17 |
@@ -363,8 +427,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.6723 |         2.1105 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=0.1) |            2.7843 |         1.9421 |        3.8661 |           3.9506 | 0.669 |  0.419 |               0.111 |                18 |
 | v0106b    | with_abs  | wavelet  | nan             |            4.7364 |         1.3614 |        5.0247 |           5.0365 | 0.372 |  0.134 |               0.647 |                17 |
 | v0106b    | noabs     | wavelet  | nan             |            4.9822 |         1.4766 |        5.1461 |           5.1626 | 0.317 |  0.09  |               0.647 |                17 |
 | v0105     | noabs     | tcn      | nan             |            4.508  |         1.6169 |        5.3747 |           5.414  | 0.125 | -0.005 |               0.875 |                16 |
@@ -378,8 +442,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.167 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.167 |                18 |
 | v0107     | noabs     | ensemble | ensemble        |            3.8489 |         2.1787 |        4.5283 |           4.5449 | 0.733 | -0.069 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan             |            4.639  |         1.3805 |        4.8082 |           4.8532 | 0.46  |  0.221 |               0.588 |                17 |
 | v0106b    | noabs     | wavelet  | nan             |            4.8684 |         1.4086 |        4.8753 |           4.9134 | 0.445 |  0.213 |               0.588 |                17 |
@@ -390,8 +454,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.167 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.167 |                18 |
 | v0107     | noabs     | ensemble | ensemble        |            3.8489 |         2.1787 |        4.5283 |           4.5449 | 0.733 | -0.069 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan             |            4.639  |         1.3805 |        4.8082 |           4.8532 | 0.46  |  0.221 |               0.588 |                17 |
 | v0106b    | noabs     | wavelet  | nan             |            4.8684 |         1.4086 |        4.8753 |           4.9134 | 0.445 |  0.213 |               0.588 |                17 |
@@ -402,8 +466,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.167 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.167 |                18 |
 | v0107     | noabs     | ensemble | ensemble        |            3.8489 |         2.1787 |        4.5283 |           4.5449 | 0.733 | -0.069 |               0     |                17 |
 | v0107     | with_abs  | ensemble | ensemble        |            4.2825 |         2.4679 |        5.1707 |           5.1461 | 0.615 | -0.255 |               0     |                17 |
 | v0104     | with_abs  | lstm     | nan             |            4.3886 |         1.9528 |        5.6916 |           5.8974 | 0.385 | -0.217 |               0.765 |                17 |
@@ -427,8 +491,8 @@ _нет данных_
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
 | v0107     | noabs     | ensemble | ensemble        |            3.8489 |         2.1787 |        4.5283 |           4.5449 | 0.733 | -0.069 |               0     |                17 |
-| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.167 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.167 |                18 |
 | v0107     | with_abs  | ensemble | ensemble        |            4.2825 |         2.4679 |        5.1707 |           5.1461 | 0.615 | -0.255 |               0     |                17 |
 | v0101     | with_abs  | lstm     | nan             |            4.7691 |         2.0552 |        5.9353 |           6.1622 | 0.561 | -0.323 |               0.778 |                18 |
 
@@ -438,8 +502,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model     |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.111 |                18 |
-| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8805 |         2.2864 |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.111 |                18 |
+| v0011     | noabs     | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.5644 |           3.6695 | 0.727 |  0.545 |               0.167 |                18 |
+| v0011     | with_abs  | linear   | SVR(C=10,ε=1.0) |            2.8964 |         1.735  |        3.7412 |           3.8493 | 0.698 |  0.502 |               0.167 |                18 |
 | v0106b    | with_abs  | wavelet  | nan             |            4.639  |         1.3805 |        4.8082 |           4.8532 | 0.46  |  0.221 |               0.588 |                17 |
 | v0106b    | noabs     | wavelet  | nan             |            4.8684 |         1.4086 |        4.8753 |           4.9134 | 0.445 |  0.213 |               0.588 |                17 |
 | v0105     | with_abs  | tcn      | nan             |            4.6189 |         1.568  |        5.3663 |           5.399  | 0.198 | -0.004 |               1     |                16 |
@@ -453,8 +517,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model      |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:-----------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
-| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
+| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
 | v0107     | noabs     | ensemble | ensemble         |            2.5242 |         1.7883 |        2.9346 |           3.055  | 0.869 | 0.369 |               0     |                17 |
 | v0107     | with_abs  | ensemble | ensemble         |            2.3839 |         1.9804 |        2.9603 |           3.1046 | 0.848 | 0.568 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan              |            4.0465 |         1.2639 |        4.33   |           4.4135 | 0.564 | 0.354 |               0.471 |                17 |
@@ -465,8 +529,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model      |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:-----------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
-| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
+| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
 | v0107     | noabs     | ensemble | ensemble         |            2.5242 |         1.7883 |        2.9346 |           3.055  | 0.869 | 0.369 |               0     |                17 |
 | v0107     | with_abs  | ensemble | ensemble         |            2.3839 |         1.9804 |        2.9603 |           3.1046 | 0.848 | 0.568 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan              |            4.0465 |         1.2639 |        4.33   |           4.4135 | 0.564 | 0.354 |               0.471 |                17 |
@@ -477,8 +541,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model      |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:-----------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
-| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
+| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
 | v0107     | with_abs  | ensemble | ensemble         |            2.3839 |         1.9804 |        2.9603 |           3.1046 | 0.848 | 0.568 |               0     |                17 |
 | v0107     | noabs     | ensemble | ensemble         |            2.5242 |         1.7883 |        2.9346 |           3.055  | 0.869 | 0.369 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan              |            4.0465 |         1.2639 |        4.33   |           4.4135 | 0.564 | 0.354 |               0.471 |                17 |
@@ -487,13 +551,13 @@ _нет данных_
 
 ### loso_mae_std ↑ (стабильность)
 
-| version   | variant   | family   |   inner_model |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
-|:----------|:----------|:---------|--------------:|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0102     | with_abs  | tcn      |           nan |            4.8387 |         1.1636 |        5.0583 |           5.2227 | 0.523 |  0.12  |               0.438 |                16 |
-| v0102     | noabs     | tcn      |           nan |            5.0861 |         1.24   |        5.466  |           5.6288 | 0.364 | -0.004 |               0.812 |                16 |
-| v0106b    | with_abs  | wavelet  |           nan |            4.0465 |         1.2639 |        4.33   |           4.4135 | 0.564 |  0.354 |               0.471 |                17 |
-| v0106b    | noabs     | wavelet  |           nan |            4.3384 |         1.3346 |        4.5126 |           4.5712 | 0.524 |  0.313 |               0.471 |                17 |
-| v0105     | with_abs  | tcn      |           nan |            4.6236 |         1.5195 |        5.2931 |           5.3266 | 0.342 |  0.029 |               0.938 |                16 |
+| version   | variant   | family   | inner_model      |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
+|:----------|:----------|:---------|:-----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
+| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.7187 |           2.8169 | 0.883 |  0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.2835 |           2.4817 | 0.909 |  0.825 |               0.056 |                18 |
+| v0102     | with_abs  | tcn      | nan              |            4.8387 |         1.1636 |        5.0583 |           5.2227 | 0.523 |  0.12  |               0.438 |                16 |
+| v0102     | noabs     | tcn      | nan              |            5.0861 |         1.24   |        5.466  |           5.6288 | 0.364 | -0.004 |               0.812 |                16 |
+| v0106b    | with_abs  | wavelet  | nan              |            4.0465 |         1.2639 |        4.33   |           4.4135 | 0.564 |  0.354 |               0.471 |                17 |
 
 
 
@@ -501,8 +565,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model      |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |     r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:-----------------|------------------:|---------------:|--------------:|-----------------:|------:|-------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.2835 |           2.4817 | 0.909 |  0.825 |               0.056 |                18 |
-| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.7187 |           2.8169 | 0.883 |  0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.2835 |           2.4817 | 0.909 |  0.825 |               0.056 |                18 |
+| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.7187 |           2.8169 | 0.883 |  0.584 |               0.056 |                18 |
 | v0107     | noabs     | ensemble | ensemble         |            2.5242 |         1.7883 |        2.9346 |           3.055  | 0.869 |  0.369 |               0     |                17 |
 | v0107     | with_abs  | ensemble | ensemble         |            2.3839 |         1.9804 |        2.9603 |           3.1046 | 0.848 |  0.568 |               0     |                17 |
 | v0104     | with_abs  | lstm     | nan              |            4.5187 |         1.8686 |        5.3917 |           5.6297 | 0.708 | -0.132 |               0.588 |                17 |
@@ -513,8 +577,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model      |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:-----------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
-| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.8898 |         1.5453 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
+| v0011     | with_abs  | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.2835 |           2.4817 | 0.909 | 0.825 |               0.056 |                18 |
+| v0011     | noabs     | linear   | EN(α=1.0,l1=0.9) |            1.914  |         1.0854 |        2.7187 |           2.8169 | 0.883 | 0.584 |               0.056 |                18 |
 | v0107     | with_abs  | ensemble | ensemble         |            2.3839 |         1.9804 |        2.9603 |           3.1046 | 0.848 | 0.568 |               0     |                17 |
 | v0107     | noabs     | ensemble | ensemble         |            2.5242 |         1.7883 |        2.9346 |           3.055  | 0.869 | 0.369 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan              |            4.0465 |         1.2639 |        4.33   |           4.4135 | 0.564 | 0.354 |               0.471 |                17 |
@@ -528,8 +592,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
-| v0011     | noabs     | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
+| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
+| v0011     | noabs     | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
 
 
 
@@ -537,8 +601,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
-| v0011     | noabs     | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
+| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
+| v0011     | noabs     | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
 
 
 
@@ -546,8 +610,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
-| v0011     | noabs     | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
+| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
+| v0011     | noabs     | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
 
 
 
@@ -555,8 +619,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
-| v0011     | noabs     | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
+| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
+| v0011     | noabs     | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
 
 
 
@@ -564,8 +628,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
-| v0011     | noabs     | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
+| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
+| v0011     | noabs     | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
 
 
 
@@ -573,8 +637,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
-| v0011     | noabs     | linear   | Ridge(α=1000) |            1.8584 |         1.3271 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
+| v0011     | with_abs  | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.2468 |           2.504  | 0.911 | 0.817 |               0.056 |                18 |
+| v0011     | noabs     | linear   | Ridge(α=1000) |            1.9025 |         1.2199 |        2.8409 |           2.9696 | 0.853 | 0.68  |               0.056 |                18 |
 
 
 
@@ -585,8 +649,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.278 |                18 |
-| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.278 |                18 |
+| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.389 |                18 |
+| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.389 |                18 |
 | v0107     | noabs     | ensemble | ensemble      |            3.807  |         2.3694 |        4.5032 |           4.5506 | 0.629 | 0.239 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan           |            3.9291 |         1.6327 |        4.6416 |           4.7672 | 0.574 | 0.193 |               0.412 |                17 |
 | v0106b    | noabs     | wavelet  | nan           |            3.7756 |         1.6528 |        4.7228 |           4.8574 | 0.62  | 0.172 |               0.235 |                17 |
@@ -597,8 +661,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.278 |                18 |
-| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.278 |                18 |
+| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.389 |                18 |
+| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.389 |                18 |
 | v0107     | noabs     | ensemble | ensemble      |            3.807  |         2.3694 |        4.5032 |           4.5506 | 0.629 | 0.239 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan           |            3.9291 |         1.6327 |        4.6416 |           4.7672 | 0.574 | 0.193 |               0.412 |                17 |
 | v0106b    | noabs     | wavelet  | nan           |            3.7756 |         1.6528 |        4.7228 |           4.8574 | 0.62  | 0.172 |               0.235 |                17 |
@@ -609,8 +673,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.278 |                18 |
-| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.278 |                18 |
+| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.389 |                18 |
+| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.389 |                18 |
 | v0106b    | noabs     | wavelet  | nan           |            3.7756 |         1.6528 |        4.7228 |           4.8574 | 0.62  | 0.172 |               0.235 |                17 |
 | v0107     | noabs     | ensemble | ensemble      |            3.807  |         2.3694 |        4.5032 |           4.5506 | 0.629 | 0.239 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan           |            3.9291 |         1.6327 |        4.6416 |           4.7672 | 0.574 | 0.193 |               0.412 |                17 |
@@ -633,10 +697,10 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.278 |                18 |
+| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.389 |                18 |
 | v0107     | noabs     | ensemble | ensemble      |            3.807  |         2.3694 |        4.5032 |           4.5506 | 0.629 | 0.239 |               0     |                17 |
 | v0106b    | noabs     | wavelet  | nan           |            3.7756 |         1.6528 |        4.7228 |           4.8574 | 0.62  | 0.172 |               0.235 |                17 |
-| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.278 |                18 |
+| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.389 |                18 |
 | v0106b    | with_abs  | wavelet  | nan           |            3.9291 |         1.6327 |        4.6416 |           4.7672 | 0.574 | 0.193 |               0.412 |                17 |
 
 
@@ -645,8 +709,8 @@ _нет данных_
 
 | version   | variant   | family   | inner_model   |   loso_mae_median |   loso_mae_std |   raw_mae_min |   kalman_mae_min |   rho |    r2 |   loso_neg_r2_share |   loso_n_subjects |
 |:----------|:----------|:---------|:--------------|------------------:|---------------:|--------------:|-----------------:|------:|------:|--------------------:|------------------:|
-| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.278 |                18 |
-| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.1888 |         2.4574 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.278 |                18 |
+| v0011     | noabs     | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        3.874  |           3.8788 | 0.724 | 0.465 |               0.389 |                18 |
+| v0011     | with_abs  | linear   | GBM(n=50,d=2) |            3.4477 |         1.9577 |        4.2199 |           4.2895 | 0.615 | 0.333 |               0.389 |                18 |
 | v0107     | noabs     | ensemble | ensemble      |            3.807  |         2.3694 |        4.5032 |           4.5506 | 0.629 | 0.239 |               0     |                17 |
 | v0106b    | with_abs  | wavelet  | nan           |            3.9291 |         1.6327 |        4.6416 |           4.7672 | 0.574 | 0.193 |               0.412 |                17 |
 | v0106b    | noabs     | wavelet  | nan           |            3.7756 |         1.6528 |        4.7228 |           4.8574 | 0.62  | 0.172 |               0.235 |                17 |
