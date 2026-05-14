@@ -206,6 +206,38 @@
 
 Физиологически правдоподобно: до LT1 (аэробный порог) лактат ещё не накопился, и автономный тонус (HRV) меняется слабо, а вот ЭМГ и оксигенация мышц уже сдвигаются. До LT2 (анаэробный порог) HRV резко смещается из-за подключения симпатической ветви → лучший предиктор именно у HRV.
 
+---
+
+## Доп-итерация 2: единый rebuild per_subject из npy + сверка со старыми
+
+**Запрос**: написать скрипт, собирающий per_subject из всех y_pred/y_true npy для всех интересующих комбинаций — на случай, если lt2 в старом per_subject.csv тоже протух.
+
+**Скрипт**: `scripts/final_per_subject_from_npy.py` (расширяет `final_rebuild_per_subject_lt1.py` на lt2 и v0011, оба сохранены).
+
+**Логика**:
+1. Воспроизводит `prepare_data + dropna(target_col)` → полный `df_<target>` (lt1: 4130, lt2: 3651 окон).
+2. Для каждой `(version, variant, target, fset)`: из старого `per_subject.csv` берёт фактический список субъектов (это «кто реально вошёл в LOSO»). Фильтрует df по нему, проверяет суммарную длину vs `len(npy)`. Если не сходится — пробует автоматический подбор подмножества субъектов.
+3. Считает MAE_min и R² per-subject → `results/<version>/per_subject_full.csv`.
+4. Сверяет с записанным `mae_min` в старом per_subject.csv.
+
+**Артефакты**:
+- `results/<version>/per_subject_full.csv` — 10 файлов (обновлены).
+- `results/final/per_subject_all.csv` — длинная сводная (5212 строк): version, variant, fset, target, subject_id, mae_min, **mae_min_old, mae_min_diff**, r2.
+- `results/final/per_subject_rebuild_report.csv` — статусы по комбинациям.
+
+**Результат сверки**:
+- **NN-расхождений с per_subject.csv = 0** (`max |mae_min − mae_min_old| ≤ 0.01 мин`). Старые данные **не протухли**, npy и per_subject.csv консистентны.
+- v0107 lt2 (особый — ансамбль): median diff = 0.0, max abs = 0.0.
+- v0011 показывает 2444 «расхождения» — это **артефакт merge**: в старом per_subject.csv v0011 на каждое (target, fset) хранятся ~17 моделей зоопарка с разными MAE. rebuild берёт best внутреннюю модель, в merge одна new-строка соединяется со многими old. Не реальное расхождение.
+
+**Покрытие LOSO после пересборки**:
+| target | versions × subjects |
+|--------|---------------------|
+| lt1    | 9 NN × 18 + v0011 × 18 |
+| lt2    | v0101 × 18; v0102, v0105 × 16; v0103, v0104, v0106a/b/c, v0107 × 17; v0011 × 18 |
+
+`final_build_ranking.py` и `final_topk_views.py` теперь используют `per_subject_full.csv` приоритетно. Артефакты в `results/final/` перезаписаны.
+
 - **Следующий шаг**: step_03 — ablation `with_abs vs noabs`.
 
 
