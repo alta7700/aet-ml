@@ -25,6 +25,8 @@
 ## Шаги
 - **step_01** — расширение `session_params.parquet`: добавить `hrv_hr_baseline_bpm` и `hrv_rmssd_baseline_ms` на калибровке 30 Вт (нужно для шага 05).
 - **step_02** — единый ranker + Top-K + пересечения (3 уровня группировки).
+- **step_02a** — распределение per-subject ошибок у топ-моделей (фундамент шага 05).
+- **step_02b** — анализ ошибки по времени до порога (time-resolved).
 - **step_03** — ablation `with_abs vs noabs`.
 - **step_04** — парные сравнения кандидатов (Wilcoxon с Holm-поправкой).
 - **step_05** — гипотеза «два эксперта» (trained/untrained), включая маршрутизатор.

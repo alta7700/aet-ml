@@ -1,0 +1,7 @@
+model_id,target,n_trained,n_untrained,mae_trained_median,mae_untrained_median,mae_trained_mean,mae_untrained_mean,mannwhitney_U,p_value
+v0011_ENH,lt2,6,12,2.02,1.881,2.577,1.979,45.0,0.4371
+v0011_ENH_lt1,lt1,6,12,4.812,1.663,5.037,1.752,71.0,0.0002
+v0011_EN_lt1,lt1,6,12,5.424,1.855,5.145,2.091,69.0,0.0008
+v0011_HRV,lt2,6,12,1.97,1.903,2.361,2.133,41.0,0.682
+v0107_ENH,lt2,6,11,2.657,2.073,3.741,2.529,43.0,0.3502
+v0107_ENH_lt1,lt1,6,12,4.54,2.154,5.643,2.188,66.0,0.0032
