@@ -1,0 +1,8 @@
+feature,std_coef,abs_coef,share_pct
+hrv_mean_rr_ms,175.02,175.02,44.6
+hrv_dfa_alpha1,108.31,108.31,27.6
+hrv_sd1_sd2_ratio,-27.83,27.83,7.1
+hrv_sd2_ms,23.34,23.34,6.0
+hrv_sdnn_ms,22.01,22.01,5.6
+hrv_rmssd_ms,17.81,17.81,4.5
+hrv_sd1_ms,17.81,17.81,4.5
