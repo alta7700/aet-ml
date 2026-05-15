@@ -1,5 +1,5 @@
 # v0011 — Ablation по модальностям
-Дата: 2026-05-13  
+Дата: 2026-05-15  
 Метрика: MAE (мин) после фильтра Калмана, LOSO CV.
 
 ## LT1
@@ -28,14 +28,14 @@
 | EMG+NIRS | SVR(C=10,ε=1.0) | 3.410 |
 | EMG | GBM(n=100,d=2) | 3.544 |
 | EMG+NIRS+HRV | EN(α=1.0,l1=0.2) | 3.591 |
-| EMG | GBM(n=50,d=3) | 3.608 |
+| EMG | GBM(n=50,d=3) | 3.606 |
 | EMG | GBM(n=50,d=2) | 3.612 |
 | EMG | GBM(n=100,d=3) | 3.626 |
 | EMG+NIRS+HRV | EN(α=1.0,l1=0.5) | 3.631 |
 | EMG | SVR(C=100,ε=1.0) | 3.643 |
 | EMG | SVR(C=100,ε=0.1) | 3.643 |
-| EMG | GBM(n=200,d=2) | 3.665 |
-| EMG | GBM(n=200,d=3) | 3.686 |
+| EMG | GBM(n=200,d=2) | 3.659 |
+| EMG | GBM(n=200,d=3) | 3.689 |
 | EMG+NIRS+HRV | Ridge(α=1000) | 3.714 |
 | EMG+NIRS+HRV | EN(α=1.0,l1=0.9) | 3.830 |
 
@@ -46,11 +46,11 @@
 | Модель | MAE (мин) | Stability std (с) |
 |---|---|---|
 | MeanPredictor       | 5.085 | — |
-| FirstWindowPredictor | 4.993 | 245 |
+| FirstWindowPredictor | 4.977 | 246 |
 | Raw model (no Kalman) | 3.767 | 151 |
 | Kalman (σ_obs=ref)  | 3.544 | — |
 
-gap (raw − FirstWin): -1.226 мин
+gap (raw − FirstWin): -1.210 мин
 **✓ sequential значимо лучше FirstWindow**
 
 ### Honest baselines — NIRS / LT1

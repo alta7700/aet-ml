@@ -1,0 +1,6 @@
+group,mean_abs_shap,share_pct
+EMG,311.6384,46.1
+NIRS,210.687,31.2
+HRV,78.3155,11.6
+interaction,45.953,6.8
+kinematics,29.7284,4.4

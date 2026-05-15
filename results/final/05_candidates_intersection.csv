@@ -4,8 +4,8 @@ lt1,EMG,v0106a,with_abs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae
 lt1,EMG,v0106a,noabs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,4.7926,1.6398,5.3287,5.2479,0.409,0.046,18
 lt1,EMG,v0106b,with_abs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.6393,1.6321,5.3244,5.2299,0.277,0.057,18
 lt1,EMG,v0106b,noabs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.5716,1.5022,5.1508,5.0756,0.387,0.106,18
-lt1,EMG,v0011,with_abs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.9425,1.9975,3.7667,3.8528,0.71,0.437,18
-lt1,EMG,v0011,noabs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.9425,1.9975,3.7667,3.8528,0.71,0.437,18
+lt1,EMG,v0011,with_abs,linear,"GBM(n=50,d=2)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.9425,1.9975,3.7667,3.8528,0.71,0.437,18
+lt1,EMG,v0011,noabs,linear,"GBM(n=50,d=2)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.9425,1.9975,3.7667,3.8528,0.71,0.437,18
 lt1,EMG,v0101,with_abs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓,4.4756,1.9097,5.4044,5.256,0.58,-0.037,18
 lt1,EMG,v0101,noabs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓,4.5606,1.9173,5.4065,5.2568,0.555,-0.039,18
 lt1,EMG,v0104,with_abs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; r2 ↓,4.4799,1.8311,5.3827,5.2648,0.248,-0.01,18
@@ -15,8 +15,8 @@ lt1,EMG+NIRS,v0104,with_abs,lstm,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_ma
 lt1,EMG+NIRS,v0104,noabs,lstm,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,4.2898,1.766,5.2107,5.1119,0.548,0.062,18
 lt1,EMG+NIRS,v0106a,noabs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,4.7944,1.582,5.2628,5.2224,0.465,0.073,18
 lt1,EMG+NIRS,v0106b,with_abs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.5404,1.5209,4.9544,4.9066,0.435,0.155,18
-lt1,EMG+NIRS,v0011,with_abs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.112,1.8667,3.5172,3.5886,0.745,0.52,18
-lt1,EMG+NIRS,v0011,noabs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.112,1.8667,3.6416,3.7108,0.728,0.489,18
+lt1,EMG+NIRS,v0011,with_abs,linear,"SVR(C=100,ε=1.0)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.112,1.8667,3.5172,3.5886,0.745,0.52,18
+lt1,EMG+NIRS,v0011,noabs,linear,"SVR(C=100,ε=1.0)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.112,1.8667,3.6416,3.7108,0.728,0.489,18
 lt1,EMG+NIRS,v0101,with_abs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓,4.5657,1.7879,5.3149,5.1811,0.665,0.012,18
 lt1,EMG+NIRS,v0101,noabs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓,4.5415,1.8443,5.3497,5.2123,0.633,-0.004,18
 lt1,EMG+NIRS,v0106b,noabs,wavelet,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.7754,1.4623,5.0262,4.9823,0.429,0.145,18
@@ -28,20 +28,20 @@ lt1,EMG+NIRS+HRV,v0106b,with_abs,wavelet,,6,raw_mae_min ↑; kalman_mae_min ↑;
 lt1,EMG+NIRS+HRV,v0106b,noabs,wavelet,,6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,4.3178,1.5879,4.6857,4.6813,0.574,0.239,18
 lt1,EMG+NIRS+HRV,v0107,with_abs,ensemble,ensemble,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.6185,2.9463,4.4935,4.5385,0.686,0.134,18
 lt1,EMG+NIRS+HRV,v0107,noabs,ensemble,ensemble,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.7131,2.4722,3.7709,3.8112,0.78,0.166,18
-lt1,EMG+NIRS+HRV,v0011,with_abs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.2293,1.9752,3.2867,3.3515,0.791,0.574,18
-lt1,EMG+NIRS+HRV,v0011,noabs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.2293,1.9752,3.2626,3.3112,0.792,0.584,18
+lt1,EMG+NIRS+HRV,v0011,with_abs,linear,"SVR(C=100,ε=1.0)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.2293,1.9752,3.2867,3.3515,0.791,0.574,18
+lt1,EMG+NIRS+HRV,v0011,noabs,linear,"SVR(C=100,ε=1.0)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,2.2293,1.9752,3.2626,3.3112,0.792,0.584,18
 lt1,EMG+NIRS+HRV,v0104,with_abs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; r2 ↓,4.5355,1.7835,5.1671,5.1135,0.487,0.072,18
 lt1,EMG+NIRS+HRV,v0106a,noabs,wavelet,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.5448,1.6997,5.2096,5.1708,0.445,0.07,18
-lt1,HRV,v0011,with_abs,linear,,6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,3.5103,2.0107,4.0142,4.1424,0.654,0.379,18
-lt1,HRV,v0011,noabs,linear,,6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,3.5103,2.0107,4.0095,4.1097,0.665,0.391,18
+lt1,HRV,v0011,with_abs,linear,Huber(ε=1.1),6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,3.5103,2.0107,4.0142,4.1424,0.654,0.379,18
+lt1,HRV,v0011,noabs,linear,Huber(ε=1.1),6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,3.5103,2.0107,4.0095,4.1097,0.665,0.391,18
 lt1,NIRS,v0106a,with_abs,wavelet,,6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,4.122,1.7339,4.9925,4.9702,0.662,0.126,18
 lt1,NIRS,v0106a,noabs,wavelet,,6,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,4.3158,1.6995,5.0776,5.0526,0.581,0.101,18
 lt1,NIRS,v0106b,with_abs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.4423,1.6797,5.1836,5.1025,0.43,0.053,18
 lt1,NIRS,v0106b,noabs,wavelet,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); r2 ↓,4.3777,1.7488,5.2387,5.1601,0.378,0.038,18
 lt1,NIRS,v0107,with_abs,ensemble,ensemble,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.8006,3.0444,4.9151,4.9542,0.593,0.111,18
 lt1,NIRS,v0107,noabs,ensemble,ensemble,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.6158,2.9038,4.6622,4.7261,0.613,0.177,18
-lt1,NIRS,v0011,with_abs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.6161,2.0263,4.1421,4.1327,0.719,0.371,18
-lt1,NIRS,v0011,noabs,linear,,5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.6161,2.0263,3.9978,4.0737,0.736,0.444,18
+lt1,NIRS,v0011,with_abs,linear,"GBM(n=50,d=3)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.6161,2.0263,4.1421,4.1327,0.719,0.371,18
+lt1,NIRS,v0011,noabs,linear,"GBM(n=50,d=3)",5,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; rho ↓; r2 ↓,3.6161,2.0263,3.9978,4.0737,0.736,0.444,18
 lt1,NIRS,v0104,with_abs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; r2 ↓,4.5136,1.7737,5.2194,5.1746,0.511,0.062,18
 lt1,NIRS,v0104,noabs,lstm,,4,raw_mae_min ↑; kalman_mae_min ↑; loso_mae_median ↑; r2 ↓,4.275,1.7639,5.2009,5.15,0.554,0.066,18
 lt2,EMG,v0104,with_abs,lstm,,5,raw_mae_min ↑; loso_mae_median ↑; loso_mae_std ↑ (стабильность); rho ↓; r2 ↓,4.4526,1.8566,5.5744,5.7852,0.446,-0.178,17
