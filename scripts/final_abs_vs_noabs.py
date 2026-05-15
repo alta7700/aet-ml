@@ -5,9 +5,9 @@ HRV/SmO₂/EMG-уровней), не хуже модели с абсолютны
 подтвердится — это самостоятельный результат: «модель обобщается без
 индивидуальных норм».
 
-Источник: results/<version>/per_subject_full.csv (NN-версии содержат обе
-variants; v0011 содержит только with_abs — для него ablation вырожден,
-пропускаем).
+Источник: results/<version>/per_subject_full.csv. Включает и нейросетевые
+v0101–v0107, и линейный зоопарк v0011 (по одному «лучшему» предсказателю
+на (feature_set, target, variant) — см. v0011_modality_ablation.py).
 
 Артефакты — в results/final/.
 
@@ -31,8 +31,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results"
 FINAL = RESULTS / "final"
 
-VERSIONS_NN = ["v0101", "v0102", "v0103", "v0104", "v0105",
-               "v0106a", "v0106b", "v0106c", "v0107"]
+VERSIONS = ["v0011", "v0101", "v0102", "v0103", "v0104", "v0105",
+            "v0106a", "v0106b", "v0106c", "v0107"]
 
 EQUIVALENCE_MARGIN_MIN = 0.3  # |Δmedian| ниже которого считаем «эквивалентным» при p>0.05
 ALPHA = 0.05
@@ -40,7 +40,7 @@ ALPHA = 0.05
 
 def load_all_per_subject() -> pd.DataFrame:
     rows = []
-    for v in VERSIONS_NN:
+    for v in VERSIONS:
         path = RESULTS / v / "per_subject_full.csv"
         if not path.exists():
             continue

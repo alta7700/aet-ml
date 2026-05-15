@@ -159,11 +159,22 @@ def plot_heatmaps(res: pd.DataFrame, out_dir: Path) -> None:
 
 
 def champion_cross_modality(df: pd.DataFrame) -> pd.DataFrame:
-    """Сравнение чемпиона с альтернативной модальностью внутри v0011."""
+    """Сравнение чемпиона с альтернативной модальностью внутри v0011.
+
+    В with_abs чемпион LT2 — HRV; в noabs — EMG+NIRS+HRV, поэтому пары
+    «чемпион vs альтернатива» в двух вариантах разные.
+    """
     comparisons = [
+        # with_abs (3 пары — как было)
         ("lt2", "with_abs", "HRV", "EMG+NIRS+HRV", "v0011"),
         ("lt1", "with_abs", "EMG+NIRS", "EMG+NIRS+HRV", "v0011"),
         ("lt2", "with_abs", "HRV", "EMG+NIRS", "v0011"),
+        # noabs (5 пар: чемпион vs альтернативы по каждой модальности)
+        ("lt2", "noabs", "EMG+NIRS+HRV", "HRV", "v0011"),
+        ("lt2", "noabs", "EMG+NIRS+HRV", "EMG+NIRS", "v0011"),
+        ("lt2", "noabs", "HRV", "EMG+NIRS", "v0011"),
+        ("lt1", "noabs", "EMG+NIRS", "EMG+NIRS+HRV", "v0011"),
+        ("lt1", "noabs", "EMG+NIRS", "HRV", "v0011"),
     ]
     rows = []
     for target, variant, fa, fb, version in comparisons:

@@ -202,9 +202,9 @@ def process_version(version: str,
     report: list[dict] = []
 
     fsets = FSET_TAGS_V0011 if is_v0011 else FSET_TAGS_NN
-    variants = [("with_abs", vdir)]
-    if not is_v0011:
-        variants.append(("noabs", vdir / "noabs"))
+    # noabs-артефакты есть и для линейного зоопарка v0011 (один лучший пред-
+    # сказатель на (fset, target)), и для нейросетевых v0101–v0107.
+    variants = [("with_abs", vdir), ("noabs", vdir / "noabs")]
 
     for variant, vroot in variants:
         if not vroot.exists():

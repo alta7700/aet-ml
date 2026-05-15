@@ -2,3 +2,8 @@ version,target,variant,fset_a,fset_b,n_paired,median_a,median_b,median_diff,p,ve
 v0011,lt2,with_abs,HRV,EMG+NIRS+HRV,18,1.9025,1.914,-0.0976,0.9661,n.s.
 v0011,lt1,with_abs,EMG+NIRS,EMG+NIRS+HRV,18,2.112,2.2293,0.1009,0.4423,n.s.
 v0011,lt2,with_abs,HRV,EMG+NIRS,18,1.9025,2.8964,-0.7117,0.012,HRV
+v0011,lt2,noabs,EMG+NIRS+HRV,HRV,18,2.348,2.3714,-0.2253,0.5226,n.s.
+v0011,lt2,noabs,EMG+NIRS+HRV,EMG+NIRS,18,2.348,2.5906,-0.3718,0.3247,n.s.
+v0011,lt2,noabs,HRV,EMG+NIRS,18,2.3714,2.5906,-0.4938,0.3927,n.s.
+v0011,lt1,noabs,EMG+NIRS,EMG+NIRS+HRV,18,2.3636,2.3815,0.2271,0.0385,EMG+NIRS+HRV
+v0011,lt1,noabs,EMG+NIRS,HRV,18,2.3636,3.3316,-0.7377,0.0814,n.s.
