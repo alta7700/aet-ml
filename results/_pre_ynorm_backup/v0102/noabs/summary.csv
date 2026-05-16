@@ -1,0 +1,5 @@
+variant,feature_set,target,n_subjects,n_features,raw_mae_min,kalman_mae_min,best_sigma_obs,kalman_30,kalman_50,kalman_75,kalman_150,r2,rho,sec
+noabs,EMG,lt2,18,79,5.6948,5.7971,30.0,5.7971,5.8872,6.0164,6.5068,-0.173,0.063,334.0
+noabs,NIRS,lt2,18,14,5.6766,5.8092,30.0,5.8092,5.9262,6.0929,6.698,-0.166,0.173,322.6
+noabs,EMG+NIRS,lt2,18,93,5.9054,6.0198,30.0,6.0198,6.1218,6.2718,6.8375,-0.193,0.118,288.8
+noabs,EMG+NIRS+HRV,lt2,18,101,5.466,5.6288,30.0,5.6288,5.7652,5.9507,6.5795,-0.004,0.364,280.7

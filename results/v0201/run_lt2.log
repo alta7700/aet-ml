@@ -1,0 +1,56 @@
+[GPU] CUDA: NVIDIA GeForce RTX 3090, n_jobs=1
+======================================================================
+v0201 — WAVELET → TCN с нормализацией таргета (диагностика коллапса)
+======================================================================
+wavelet=morl, scales=[1, 2, 4, 8, 16]
+window_step=6, seq_length=12
+n_channels=32, dilations=[1, 2, 4, 8, 16]
+device=cuda, n_jobs=1
+
+[CWT] Загружен кэш: (4130, 138, 5), 138 признаков
+
+══════════════════════════════════════════════════════════════════════
+ТАРГЕТ: LT2
+══════════════════════════════════════════════════════════════════════
+
+  [EMG / lt2 / with_abs]  n=18, 79 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.5min finished
+    raw=5.319  kalman_best=5.316 (sigma=10.0)  (148.4s)
+  [EMG / lt2 / noabs]  n=18, 79 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.4min finished
+    raw=5.302  kalman_best=5.301 (sigma=10.0)  (141.7s)
+  [NIRS / lt2 / with_abs]  n=18, 18 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.8min finished
+    raw=5.007  kalman_best=5.030 (sigma=5.0)  (165.6s)
+  [NIRS / lt2 / noabs]  n=18, 14 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.8min finished
+    raw=4.401  kalman_best=4.430 (sigma=5.0)  (166.3s)
+  [EMG+NIRS / lt2 / with_abs]  n=18, 97 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.2min finished
+    raw=4.765  kalman_best=4.775 (sigma=5.0)  (134.7s)
+  [EMG+NIRS / lt2 / noabs]  n=18, 93 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.3min finished
+    raw=4.850  kalman_best=4.858 (sigma=5.0)  (135.9s)
+  [EMG+NIRS+HRV / lt2 / with_abs]  n=18, 107 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.4min finished
+    raw=3.854  kalman_best=3.875 (sigma=5.0)  (146.5s)
+  [EMG+NIRS+HRV / lt2 / noabs]  n=18, 101 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.5min finished
+    raw=4.157  kalman_best=4.167 (sigma=5.0)  (150.9s)
+
+======================================================================
+ИТОГИ:
+
+  [with_abs]
+    LT2 / EMG+NIRS+HRV      kalman=3.875  Δ=+1.652 vs v0011
+    LT2 / EMG+NIRS          kalman=4.776  Δ=+1.167 vs v0011
+    LT2 / NIRS              kalman=5.030  Δ=+0.978 vs v0011
+    LT2 / EMG               kalman=5.316  Δ=+1.595 vs v0011
+
+  [noabs]
+    LT2 / EMG+NIRS+HRV      kalman=4.168  Δ=+1.944 vs v0011
+    LT2 / NIRS              kalman=4.430  Δ=+0.378 vs v0011
+    LT2 / EMG+NIRS          kalman=4.858  Δ=+1.250 vs v0011
+    LT2 / EMG               kalman=5.301  Δ=+1.580 vs v0011
+
+✅ Готово: /root/dissertation/results/v0201

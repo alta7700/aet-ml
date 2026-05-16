@@ -209,7 +209,13 @@ class WaveletTCN(nn.Module):
 # ─── Обучение TCN ─────────────────────────────────────────────────────────────
 
 def _train_tcn(model, train_loader, val_loader, config):
-    criterion = nn.HuberLoss(delta=60.0)
+    # TCN-ветвь учится в нормированной шкале таргета (см. _run_one_loso_fold),
+    # поэтому ошибки порядка 1 std → MSE адекватен и не вырождается в
+    # MAE-режим, который провоцировал коллапс к константному предсказанию.
+    # Линейная часть (ElasticNet) — sklearn, остаётся в секундах, проблемы
+    # коллапса там нет; смешение происходит ПОСЛЕ обратной денормализации
+    # выхода TCN.
+    criterion = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate,
                             weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
@@ -257,8 +263,14 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
     imp = SimpleImputer(strategy="median"); sc = StandardScaler()
     X_tr_all = sc.fit_transform(imp.fit_transform(train_all[feat_cols].values))
     X_te = sc.transform(imp.transform(test[feat_cols].values))
-    y_tr_all = train_all[target_col].values
-    y_te = test[target_col].values
+    y_tr_all = train_all[target_col].values.astype(np.float32)  # секунды, для ElasticNet
+    y_te     = test[target_col].values.astype(np.float32)        # секунды, истина
+
+    # Нормированные версии для TCN; обратная денормализация — перед смешением
+    # с предсказаниями ElasticNet (которые остаются в секундах).
+    y_sc          = StandardScaler()
+    y_tr_all_norm = y_sc.fit_transform(y_tr_all.reshape(-1, 1)).ravel().astype(np.float32)
+    y_te_norm     = y_sc.transform(y_te.reshape(-1, 1)).ravel().astype(np.float32)
 
     # ── Линейная модель (ElasticNet) ──────────────────────────────────────────
     lin_model = ElasticNet(alpha=0.01, l1_ratio=0.5, max_iter=2000)
@@ -284,14 +296,15 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
         cwt_tr = _precompute_cwt(X_tr_all, config.scales, config.wavelet)
         cwt_te = _precompute_cwt(X_te,     config.scales, config.wavelet)
 
+    # TCN-датасеты получают НОРМИРОВАННЫЙ таргет.
     _offset_ds = [
-        WaveletSeqDataset(X_tr_all[off:], y_tr_all[off:], config.seq_length,
+        WaveletSeqDataset(X_tr_all[off:], y_tr_all_norm[off:], config.seq_length,
                           config.window_step, config.scales, config.wavelet,
                           cwt_cache=cwt_tr[off:], device=dev)
         for off in range(config.window_step)
     ]
     train_ds = ConcatDataset([d for d in _offset_ds if len(d) > 0])
-    test_ds  = WaveletSeqDataset(X_te, y_te, config.seq_length,
+    test_ds  = WaveletSeqDataset(X_te, y_te_norm, config.seq_length,
                                   config.window_step, config.scales, config.wavelet,
                                   cwt_cache=cwt_te, device=dev)
 
@@ -324,8 +337,12 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
             val_tcn_list.append(preds)
             val_true_list.append(y_batch.cpu().numpy())
             val_last_x_list.append(x_orig[:, -1, :].cpu().numpy())
-    y_val_tcn  = np.concatenate(val_tcn_list)
-    y_val_true = np.concatenate(val_true_list)
+    y_val_tcn_norm  = np.concatenate(val_tcn_list)
+    y_val_true_norm = np.concatenate(val_true_list)
+    # Денормализуем выход TCN и истину обратно в секунды; ElasticNet и так
+    # выдаёт секунды → подбор α идёт в одной шкале.
+    y_val_tcn  = y_sc.inverse_transform(y_val_tcn_norm.reshape(-1, 1)).ravel()
+    y_val_true = y_sc.inverse_transform(y_val_true_norm.reshape(-1, 1)).ravel()
     val_last_x = np.concatenate(val_last_x_list) if val_last_x_list else np.empty((0, X_tr_all.shape[1]))
     if len(val_last_x) > 0:
         y_val_lin = lin_model.predict(val_last_x)
@@ -349,7 +366,8 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
             test_preds.append(tcn(x_orig, x_cwt).cpu().numpy())
     y_tcn_sparse = np.concatenate(test_preds)
 
-    # Интерполяция TCN предсказаний
+    # Интерполяция TCN предсказаний (в нормированной шкале), затем
+    # денормализация всей кривой перед смешением с ElasticNet.
     test_ind = np.arange(0, len(y_te), config.window_step)
     pred_at  = test_ind[config.seq_length - 1: config.seq_length - 1 + len(y_tcn_sparse)]
     y_tcn_full = np.full(len(y_te), np.nan)
@@ -358,8 +376,9 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
     x_all = np.arange(len(y_te)); valid = ~np.isnan(y_tcn_full)
     y_tcn_full = (np.interp(x_all, x_all[valid], y_tcn_full[valid])
                   if valid.sum() >= 2 else np.full(len(y_te), np.nanmean(y_tcn_full)))
+    y_tcn_full = y_sc.inverse_transform(y_tcn_full.reshape(-1, 1)).ravel()
 
-    # Ensemble
+    # Ensemble (обе ветви теперь в секундах)
     y_ensemble = best_alpha * y_tcn_full + (1 - best_alpha) * y_pred_lin_te
 
     return {

@@ -1,0 +1,37 @@
+[GPU] CUDA: NVIDIA GeForce RTX 3090, n_jobs=1
+======================================================================
+v0201 — WAVELET → TCN с нормализацией таргета (диагностика коллапса)
+======================================================================
+wavelet=morl, scales=[1, 2, 4, 8, 16]
+window_step=6, seq_length=12
+n_channels=32, dilations=[1, 2, 4, 8, 16]
+device=cuda, n_jobs=1
+
+[CWT] Загружен кэш: (4130, 138, 5), 138 признаков
+
+══════════════════════════════════════════════════════════════════════
+ТАРГЕТ: LT1
+══════════════════════════════════════════════════════════════════════
+
+  [EMG / lt1 / with_abs]  n=18, 79 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.6min finished
+    raw=4.768  kalman_best=4.773 (sigma=5.0)  (153.4s)
+  [EMG / lt1 / noabs]  n=18, 79 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.2min finished
+    raw=4.831  kalman_best=4.835 (sigma=5.0)  (134.4s)
+  [NIRS / lt1 / with_abs]  n=18, 18 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  3.3min finished
+    raw=3.863  kalman_best=3.884 (sigma=5.0)  (200.6s)
+  [NIRS / lt1 / noabs]  n=18, 14 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  3.2min finished
+    raw=3.950  kalman_best=3.969 (sigma=5.0)  (190.1s)
+  [EMG+NIRS / lt1 / with_abs]  n=18, 97 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.7min finished
+    raw=4.577  kalman_best=4.586 (sigma=5.0)  (160.9s)
+  [EMG+NIRS / lt1 / noabs]  n=18, 93 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  2.7min finished
+    raw=4.320  kalman_best=4.331 (sigma=5.0)  (160.3s)
+  [EMG+NIRS+HRV / lt1 / with_abs]  n=18, 107 признаков
+[Parallel(n_jobs=1)]: Done  18 out of  18 | elapsed:  3.0min finished
+    raw=4.141  kalman_best=4.155 (sigma=5.0)  (179.7s)
+  [EMG+NIRS+HRV / lt1 / noabs]  n=18, 101 признаков

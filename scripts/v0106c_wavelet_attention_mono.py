@@ -178,7 +178,12 @@ def monotonic_penalty(y_pred: torch.Tensor) -> torch.Tensor:
 # ─── Обучение с монотонным штрафом ────────────────────────────────────────────
 
 def train_model(model, train_loader, val_loader, config):
-    huber     = nn.HuberLoss(delta=60.0)
+    # Замена Huber→MSE и нормировка таргета (см. _run_one_loso_fold) убирают
+    # коллапс к константе. Монотонный штраф остаётся валидным: z-нормировка
+    # аффинна и сохраняет монотонность y_pred[i+1] ≤ y_pred[i].
+    # Внимание: после нормировки относительный вес mono_weight по факту слабее,
+    # чем в исходной схеме на секундах. При необходимости подкрутить --mono-weight.
+    huber     = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate,
                             weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
@@ -226,7 +231,14 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
     imp = SimpleImputer(strategy="median"); sc = StandardScaler()
     X_tr = sc.fit_transform(imp.fit_transform(train[feat_cols].values))
     X_te = sc.transform(imp.transform(test[feat_cols].values))
-    y_tr = train[target_col].values; y_te = test[target_col].values
+    # Нормировка таргета per-fold; на инференсе предсказания
+    # денормализуются обратно в секунды (см. конец функции).
+    # Монотонный штраф остаётся валидным после нормировки.
+    y_tr_raw = train[target_col].values.astype(np.float32)
+    y_te_raw = test[target_col].values.astype(np.float32)
+    y_sc = StandardScaler()
+    y_tr = y_sc.fit_transform(y_tr_raw.reshape(-1, 1)).ravel().astype(np.float32)
+    y_te = y_sc.transform(y_te_raw.reshape(-1, 1)).ravel().astype(np.float32)
 
     dev = config.device
     if cwt_global is not None and cwt_idx_map and cwt_feat_cols:
@@ -289,7 +301,10 @@ def _run_one_loso_fold(test_subject_id, df, feat_cols, target_col, config,
     y_pred_full = (np.interp(x_all, x_all[valid], y_pred_full[valid])
                    if valid.sum() >= 2 else np.full(len(y_te), np.nanmean(y_pred_full)))
 
-    return {"fold": test_subject_id, "y_pred": y_pred_full, "y_true": y_te}
+    # Денормализация предсказаний обратно в секунды; y_true возвращаем
+    # в исходных секундах для совместимости с downstream-метриками.
+    y_pred_full = y_sc.inverse_transform(y_pred_full.reshape(-1, 1)).ravel()
+    return {"fold": test_subject_id, "y_pred": y_pred_full, "y_true": y_te_raw}
 
 
 def _loso(df, feat_cols, target_col, config, n_jobs,

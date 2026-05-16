@@ -147,7 +147,10 @@ class GRURegressor(nn.Module):
 def train_model(model: nn.Module, train_loader: DataLoader,
                 val_loader: DataLoader, config: Config) -> nn.Module:
     """Обучение с early stopping. Загружает best_state в конце."""
-    criterion = nn.HuberLoss(delta=60.0)
+    # Таргет нормирован per-fold (см. _run_one_loso_fold) → ошибки порядка 1
+    # std, MSE адекватен и не вырождается в MAE-режим, который провоцировал
+    # коллапс к константному предсказанию.
+    criterion = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=config.num_epochs, eta_min=1e-5)
@@ -210,8 +213,15 @@ def _run_one_loso_fold(test_subject_id,
     sc  = StandardScaler()
     X_tr = sc.fit_transform(imp.fit_transform(train[feat_cols].values))
     X_te = sc.transform(imp.transform(test[feat_cols].values))
-    y_tr = train[target_col].values
-    y_te = test[target_col].values
+    # Нормировка таргета per-fold: модель учится в стандартизированных
+    # единицах, на инференсе предсказания денормализуются обратно в секунды.
+    # Без этого фикса (исторически таргет шёл в секундах) NN сваливалась
+    # к константному предсказанию среднего.
+    y_tr_raw = train[target_col].values.astype(np.float32)
+    y_te_raw = test[target_col].values.astype(np.float32)
+    y_sc = StandardScaler()
+    y_tr = y_sc.fit_transform(y_tr_raw.reshape(-1, 1)).ravel().astype(np.float32)
+    y_te = y_sc.transform(y_te_raw.reshape(-1, 1)).ravel().astype(np.float32)
 
     train_ds = TemporalWindowDataset(X_tr, y_tr, config.seq_length)
     test_ds  = TemporalWindowDataset(X_te, y_te, config.seq_length)
@@ -252,10 +262,13 @@ def _run_one_loso_fold(test_subject_id,
     else:
         y_pred_full = y_pred_sparse[:len(y_te)]
 
+    # Денормализация предсказаний обратно в секунды; y_true возвращаем в
+    # исходных секундах для совместимости с downstream-метриками.
+    y_pred_full = y_sc.inverse_transform(y_pred_full.reshape(-1, 1)).ravel()
     return {
         "fold":   test_subject_id,
         "y_pred": y_pred_full,
-        "y_true": y_te,
+        "y_true": y_te_raw,
     }
 
 
