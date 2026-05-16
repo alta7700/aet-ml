@@ -347,8 +347,8 @@ def _train_stateful(model: nn.Module, train_records, val_records,
         loss_sum = 0.0; n_steps = 0; preds_collect = []
         for st in range(0, len(X), cfg.chunk_size):
             end = min(st + cfg.chunk_size, len(X))
-            x_chunk = X[st:end].unsqueeze(0).to(device)            # (1, k, F)
-            y_chunk = y[st:end].unsqueeze(0).to(device)            # (1, k)
+            x_chunk = torch.from_numpy(X[st:end]).float().unsqueeze(0).to(device)  # (1, k, F)
+            y_chunk = torch.from_numpy(y[st:end]).float().unsqueeze(0).to(device)  # (1, k)
             state = (h, c) if h is not None else None
             pred, (h, c) = model(x_chunk, state, return_all=True)  # (1, k)
             if train:
@@ -615,55 +615,58 @@ def run_experiment(cfg: ExperimentCfg) -> None:
         targets_cfg = {cfg.target: targets_cfg[cfg.target]}
 
     all_records, all_subj_records = [], []
-    fset = "EMG+NIRS+HRV"
-    fset_tag = fset.replace("+", "_")
+    feature_sets = ["EMG", "EMG+NIRS", "EMG+NIRS+HRV"]
 
-    for tgt_name, target_col in targets_cfg.items():
-        print(f"\n── ТАРГЕТ {tgt_name.upper()} ──")
-        df_prep = prepare_data(df_raw, session_params, tgt_name)
-        df_tgt = df_prep.dropna(subset=[target_col])
-        feat_cols_full = get_feature_cols(df_tgt, fset)
-        feat_cols = [c for c in feat_cols_full if c not in EXCLUDE_ABS]
-        n_subj = df_tgt["subject_id"].nunique()
-        print(f"  n_subj={n_subj}, n_features={len(feat_cols)}"
-              + (f" (+CWT {len(feat_cols)*5})" if cwt is not None else ""))
+    for fset in feature_sets:
+        fset_tag = fset.replace("+", "_")
+        print(f"\n{'='*70}\n── НАБОР ПРИЗНАКОВ: {fset} ──")
 
-        t0 = time.perf_counter()
-        res = _loso(df_tgt, feat_cols, target_col, cwt, cfg, device)
-        elapsed = time.perf_counter() - t0
+        for tgt_name, target_col in targets_cfg.items():
+            print(f"\n── ТАРГЕТ {tgt_name.upper()} ──")
+            df_prep = prepare_data(df_raw, session_params, tgt_name)
+            df_tgt = df_prep.dropna(subset=[target_col])
+            feat_cols_full = get_feature_cols(df_tgt, fset)
+            feat_cols = [c for c in feat_cols_full if c not in EXCLUDE_ABS]
+            n_subj = df_tgt["subject_id"].nunique()
+            print(f"  n_subj={n_subj}, n_features={len(feat_cols)}"
+                  + (f" (+CWT {len(feat_cols)*5})" if cwt is not None else ""))
 
-        if "error" in res:
-            print(f"  ❌ {res['error']}")
-            continue
+            t0 = time.perf_counter()
+            res = _loso(df_tgt, feat_cols, target_col, cwt, cfg, device)
+            elapsed = time.perf_counter() - t0
 
-        for row in res.get("per_subject", []):
-            all_subj_records.append({"variant": "noabs", "feature_set": fset,
-                                     "target": tgt_name, **row})
-        np.save(out_dir / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
-        np.save(out_dir / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
+            if "error" in res:
+                print(f"  ❌ {res['error']}")
+                continue
 
-        sigma_grid = [30.0, 50.0, 75.0, 150.0]
-        best_mae = float("inf"); best_sigma = sigma_grid[0]; k_maes = {}
-        for sigma in sigma_grid:
-            y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
-            mae_k = mean_absolute_error(res["y_true"], y_k) / 60.0
-            k_maes[sigma] = round(mae_k, 4)
-            if mae_k < best_mae:
-                best_mae = mae_k; best_sigma = sigma
+            for row in res.get("per_subject", []):
+                all_subj_records.append({"variant": "noabs", "feature_set": fset,
+                                         "target": tgt_name, **row})
+            np.save(out_dir / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
+            np.save(out_dir / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
 
-        all_records.append({
-            "variant": "noabs", "feature_set": fset, "target": tgt_name,
-            "n_subjects": n_subj, "n_features": len(feat_cols),
-            "raw_mae_min":    round(res["raw_mae_min"], 4),
-            "kalman_mae_min": round(best_mae, 4),
-            "best_sigma_obs": best_sigma,
-            "kalman_30":  k_maes.get(30.0),  "kalman_50":  k_maes.get(50.0),
-            "kalman_75":  k_maes.get(75.0),  "kalman_150": k_maes.get(150.0),
-            "r2":  round(res["r2"], 3), "rho": round(res["rho"], 3),
-            "sec": round(elapsed, 1),
-        })
-        print(f"  raw={res['raw_mae_min']:.3f}  "
-              f"kalman_best={best_mae:.3f} (sigma={best_sigma})  ({elapsed:.1f}s)")
+            sigma_grid = [30.0, 50.0, 75.0, 150.0]
+            best_mae = float("inf"); best_sigma = sigma_grid[0]; k_maes = {}
+            for sigma in sigma_grid:
+                y_k = kalman_smooth(res["y_pred"], sigma_p=5.0, sigma_obs=sigma)
+                mae_k = mean_absolute_error(res["y_true"], y_k) / 60.0
+                k_maes[sigma] = round(mae_k, 4)
+                if mae_k < best_mae:
+                    best_mae = mae_k; best_sigma = sigma
+
+            all_records.append({
+                "variant": "noabs", "feature_set": fset, "target": tgt_name,
+                "n_subjects": n_subj, "n_features": len(feat_cols),
+                "raw_mae_min":    round(res["raw_mae_min"], 4),
+                "kalman_mae_min": round(best_mae, 4),
+                "best_sigma_obs": best_sigma,
+                "kalman_30":  k_maes.get(30.0),  "kalman_50":  k_maes.get(50.0),
+                "kalman_75":  k_maes.get(75.0),  "kalman_150": k_maes.get(150.0),
+                "r2":  round(res["r2"], 3), "rho": round(res["rho"], 3),
+                "sec": round(elapsed, 1),
+            })
+            print(f"  raw={res['raw_mae_min']:.3f}  "
+                  f"kalman_best={best_mae:.3f} (sigma={best_sigma})  ({elapsed:.1f}s)")
 
     pd.DataFrame(all_records).to_csv(out_dir / "summary.csv", index=False)
     pd.DataFrame(all_subj_records).to_csv(out_dir / "per_subject.csv", index=False)
