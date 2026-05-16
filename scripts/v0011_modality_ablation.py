@@ -258,7 +258,7 @@ def prepare_data(df_raw: pd.DataFrame,
     else:
         df = df_raw[df_raw["target_time_to_lt1_usable"] == 1].copy()
 
-    df = df.sort_values(["subject_id", "window_start_sec"]).reset_index(drop=True)
+    df = df.sort_values(["subject_id", "window_start_sec"])
 
     # Per-subject z-norm по baseline (stage_index=0, 60 Вт) — без look-ahead.
     # mean/std берутся только из окон первой ступени и применяются ко всей сессии.
