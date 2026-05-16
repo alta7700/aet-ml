@@ -120,36 +120,42 @@ class ExperimentCfg:
 class CwtCache:
     """Обёртка над dataset/cwt_cache.npz.
 
-    Кеш хранит CWT для всех 138 фич × 5 шкал. На загрузке выбираем подсет
-    нужных фич, сплющиваем (n_f × n_sc) → (n_f * n_sc) и нормализуем
-    глобально (mean/std по всем строкам). Для z-norm per fold нет смысла:
-    CWT уже стационарен по природе.
+    Кеш хранит CWT сырого ЭМГ-сигнала (VL_dist, VL_prox) внутри каждого
+    30-секундного окна: по 7 шкалам (25–522 Гц) × 2 статистики (mean, std).
+
+    get() возвращает (n_rows, n_channels * n_scales * 2) без нормализации —
+    нормализация выполняется в _prepare_X по train-fold.
     """
     def __init__(self):
         d = np.load(CWT_CACHE_PATH, allow_pickle=True)
-        self.cwt = d["cwt"]                # (n_rows, n_features, n_scales)
-        self.row_ids = d["row_ids"]        # (n_rows,) индексы df.index
-        self.feat_cols = d["feat_cols"].tolist()
-        self.scales = d["scales"]
-        # row_id → position в массиве cwt
+        self.cwt_mean      = d["cwt_mean"]       # (N, n_channels, n_scales)
+        self.cwt_std       = d["cwt_std"]        # (N, n_channels, n_scales)
+        self.row_ids       = d["row_ids"]        # (N,) индексы df.index
+        self.scales        = d["scales"]
+        self.channel_names = d["channel_names"].tolist()
         self.row_to_pos = {int(r): i for i, r in enumerate(self.row_ids)}
 
-    def get(self, df_indices: np.ndarray, feat_subset: list[str]) -> np.ndarray:
-        """Возвращает (n_rows, n_feat_subset * n_scales) float32, z-norm.
+    @property
+    def n_features(self) -> int:
+        """Число CWT-признаков на строку: n_channels × n_scales × 2 (mean+std)."""
+        nc, ns = self.cwt_mean.shape[1], self.cwt_mean.shape[2]
+        return nc * ns * 2
 
-        df_indices — оригинальные df.index. Игнорируем те, что отсутствуют
-        в кеше (их быть не должно, но защитимся).
+    def get(self, df_indices: np.ndarray, feat_subset=None) -> np.ndarray:
+        """Возвращает (n_rows, n_channels * n_scales * 2) float32, без нормализации.
+
+        feat_subset игнорируется — всегда возвращаются все каналы и шкалы.
+        df_indices — оригинальные df.index.
         """
-        feat_idx = [self.feat_cols.index(c) for c in feat_subset
-                    if c in self.feat_cols]
-        if len(feat_idx) != len(feat_subset):
-            missing = [c for c in feat_subset if c not in self.feat_cols]
-            raise KeyError(f"В CWT-кеше нет признаков: {missing}")
-        pos = np.array([self.row_to_pos[int(i)] for i in df_indices])
-        sub = self.cwt[np.ix_(pos, feat_idx)]                   # (n, n_f, n_sc)
-        flat = sub.reshape(len(pos), -1).astype(np.float32)
-        mu, sd = flat.mean(0), flat.std(0) + 1e-8
-        return (flat - mu) / sd
+        pos  = np.array([self.row_to_pos[int(i)] for i in df_indices])
+        mean = self.cwt_mean[pos]   # (n, n_ch, n_sc)
+        std  = self.cwt_std[pos]    # (n, n_ch, n_sc)
+        n    = len(pos)
+        flat = np.concatenate([mean.reshape(n, -1),
+                                std.reshape(n, -1)], axis=1)
+        # Заменяем NaN нулём (окна с нехваткой сигнала)
+        np.nan_to_num(flat, copy=False, nan=0.0)
+        return flat.astype(np.float32)
 
 
 # ─── Datasets ─────────────────────────────────────────────────────────────────
@@ -408,7 +414,11 @@ def _predict_stateful(model: nn.Module, X: torch.Tensor,
 
 def _prepare_X(df: pd.DataFrame, feat_cols: list[str], cwt: Optional[CwtCache],
                train_idx: pd.Index, test_idx: pd.Index):
-    """Импутация + стандартизация + (опционально) конкат CWT-фич."""
+    """Импутация + стандартизация + (опционально) конкат CWT-фич.
+
+    CWT нормализуется отдельным StandardScaler, обученным только на train_idx,
+    чтобы избежать утечки данных тест-субъекта в LOSO.
+    """
     imp = SimpleImputer(strategy="median")
     sc = StandardScaler()
     X_tr_raw = df.loc[train_idx, feat_cols].values
@@ -418,6 +428,9 @@ def _prepare_X(df: pd.DataFrame, feat_cols: list[str], cwt: Optional[CwtCache],
     if cwt is not None:
         cwt_tr = cwt.get(train_idx.values, feat_cols)
         cwt_te = cwt.get(test_idx.values, feat_cols)
+        cwt_sc = StandardScaler()
+        cwt_tr = cwt_sc.fit_transform(cwt_tr)
+        cwt_te = cwt_sc.transform(cwt_te)
         X_tr = np.concatenate([X_tr, cwt_tr], axis=1)
         X_te = np.concatenate([X_te, cwt_te], axis=1)
     return X_tr.astype(np.float32), X_te.astype(np.float32)
@@ -628,8 +641,8 @@ def run_experiment(cfg: ExperimentCfg) -> None:
             feat_cols_full = get_feature_cols(df_tgt, fset)
             feat_cols = [c for c in feat_cols_full if c not in EXCLUDE_ABS]
             n_subj = df_tgt["subject_id"].nunique()
-            print(f"  n_subj={n_subj}, n_features={len(feat_cols)}"
-                  + (f" (+CWT {len(feat_cols)*5})" if cwt is not None else ""))
+            cwt_info = f" (+CWT {cwt.n_features})" if cwt is not None else ""
+            print(f"  n_subj={n_subj}, n_features={len(feat_cols)}{cwt_info}")
 
             t0 = time.perf_counter()
             res = _loso(df_tgt, feat_cols, target_col, cwt, cfg, device)
