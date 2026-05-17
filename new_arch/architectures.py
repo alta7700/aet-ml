@@ -87,7 +87,7 @@ _LSTM_COMMON_HP = {
     "lr": 1e-3,
     "weight_decay": 1e-5,
     "batch_size": 64,
-    "max_epochs": 80,
+    "max_epochs": 20,
     "checkpoint_every_epochs": 4,
 }
 

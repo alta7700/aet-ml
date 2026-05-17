@@ -1,0 +1,22 @@
+\begin{table}
+\caption{Сравнение: family_overall}
+\label{tab:cmp_family_overall}
+\begin{tabular}{lllllrrrrrrrrr}
+\toprule
+comparison_kind & group_key & metric & condition_a & condition_b & n_subjects & mean_a & mean_b & delta_mean & wilcoxon_pvalue & pvalue_adj & reject_at_alpha & cohens_d & cliffs_delta \\
+\midrule
+family_overall & target=lt1 & abs_lt_err_median_sec & LSTM & Lin & 18 & 186.820 & 195.342 & -8.521 & 0.417 & 0.963 & False & -0.157 & -0.123 \\
+family_overall & target=lt1 & abs_lt_err_median_sec & LSTM & TCN & 18 & 186.820 & 200.974 & -14.153 & 0.523 & 0.963 & False & -0.169 & 0.006 \\
+family_overall & target=lt1 & abs_lt_err_median_sec & Lin & TCN & 18 & 195.342 & 200.974 & -5.632 & 0.932 & 0.963 & False & -0.066 & 0.093 \\
+family_overall & target=lt2 & abs_lt_err_median_sec & LSTM & Lin & 18 & 174.656 & 168.989 & 5.667 & 0.932 & 0.963 & False & 0.076 & -0.025 \\
+family_overall & target=lt2 & abs_lt_err_median_sec & LSTM & TCN & 17 & 164.857 & 173.143 & -8.286 & 0.854 & 0.963 & False & -0.126 & 0.017 \\
+family_overall & target=lt2 & abs_lt_err_median_sec & Lin & TCN & 17 & 170.542 & 173.143 & -2.602 & 0.963 & 0.963 & False & -0.030 & 0.100 \\
+family_overall & target=lt1 & mae & LSTM & Lin & 18 & 203.212 & 246.467 & -43.255 & 0.003 & 0.017 & True & -0.793 & -0.340 \\
+family_overall & target=lt1 & mae & LSTM & TCN & 18 & 203.212 & 213.834 & -10.622 & 0.551 & 0.551 & False & -0.162 & -0.062 \\
+family_overall & target=lt1 & mae & Lin & TCN & 18 & 246.467 & 213.834 & 32.633 & 0.142 & 0.283 & False & 0.415 & 0.222 \\
+family_overall & target=lt2 & mae & LSTM & Lin & 18 & 193.577 & 220.809 & -27.232 & 0.099 & 0.283 & False & -0.322 & -0.228 \\
+family_overall & target=lt2 & mae & LSTM & TCN & 17 & 183.732 & 204.505 & -20.773 & 0.329 & 0.395 & False & -0.317 & -0.052 \\
+family_overall & target=lt2 & mae & Lin & TCN & 17 & 224.339 & 204.505 & 19.834 & 0.329 & 0.395 & False & 0.234 & 0.183 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -22,6 +22,14 @@ dependencies = [
 # На macOS — тот же wheel с MPS-бэкендом.
 [project.optional-dependencies]
 torch = ["torch>=2.7"]
+analysis = [
+    "statsmodels>=0.14",
+    "seaborn>=0.13",
+    "openpyxl>=3.1",
+    "tabulate>=0.9",
+    "jinja2>=3.1",
+    "tomli>=2.0; python_version < '3.11'",
+]
 
 [tool.uv]
 package = false

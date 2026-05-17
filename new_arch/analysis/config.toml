@@ -1,0 +1,55 @@
+# Конфиг analysis-pipeline. Грузится load_config() из analysis/schemas.py.
+
+[paths]
+results_root = "results"
+out_root = "analysis_out"
+
+[metrics]
+catastrophic_threshold_sec = 120.0
+stable_window_threshold_sec = 120.0
+# "last" — берём max(epoch) из predictions parquet каждой модели (нет test peeking,
+#   корректно методологически; разные модели могут иметь разный max_epochs — это норм,
+#   у каждой берётся её собственный последний чекпоинт).
+# "best" — argmin subject-mean MAE; ОПТИМИСТИЧЕСКИ СМЕЩЕНО (test selection bias),
+#   использовать только как oracle ceiling.
+epoch_policy = "last"
+
+[bootstrap]
+n = 1000
+ci_level = 0.95
+seed = 42
+
+[composite]
+# composite_score = sum(w_i * z(metric_i)); меньше = лучше
+lt_mae_median_policy_mean = 1.0
+lt_mae_median_policy_std = 0.5
+catastrophic_rate_mean = 0.5
+abs_lt_bias_median_policy_mean = 0.25
+
+[comparisons]
+required = [
+    "family_overall",
+    "modality_within_family",
+    "abs_within_arch",
+    "wavelet_within_family",
+    "lt1_vs_lt2_per_model_class",
+]
+optional = [
+    "stateful_vs_stateless",
+    "attention_vs_plain",
+    "stride_within_arch",
+]
+primary_metric = "lt_mae_median_policy_mean"
+secondary_metric = "mae_mean"
+
+[multitest]
+# Метод поправки на множественные сравнения для p-values Wilcoxon-теста.
+# Передаётся в statsmodels.stats.multitest.multipletests.
+# fdr_bh — Benjamini–Hochberg; альтернативы: "bonferroni", "holm", "fdr_by".
+correction = "fdr_bh"
+alpha = 0.05
+
+[reporting]
+top_n = 10
+figure_dpi = 150
+figure_formats = ["png", "svg", "pdf"]
