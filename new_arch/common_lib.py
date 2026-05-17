@@ -196,9 +196,17 @@ def build_predictions_filename(meta: ExperimentMetadata) -> str:
     return f"predictions_{meta.model_id}.parquet"
 
 
-def build_checkpoint_filename(meta: ExperimentMetadata, fold_id: str, ext: str) -> str:
-    """model_{model_id}_fold-{fold_id}.{ext}."""
-    return f"model_{meta.model_id}_fold-{fold_id}.{ext}"
+def build_checkpoint_filename(meta: ExperimentMetadata, fold_id: str, ext: str,
+                              *, epoch: int | None = None) -> str:
+    """Имя checkpoint-файла.
+
+    Без epoch: model_{model_id}_fold-{fold_id}.{ext}.
+    С epoch:   model_{model_id}_fold-{fold_id}_epoch-{NN}.{ext}.
+    """
+    base = f"model_{meta.model_id}_fold-{fold_id}"
+    if epoch is not None:
+        base += f"_epoch-{int(epoch):03d}"
+    return f"{base}.{ext}"
 
 
 def arch_dir(results_root: Path, architecture_id: str) -> Path:
@@ -278,18 +286,22 @@ def save_history_csv(rows: list[dict[str, Any]],
 def save_model_checkpoint(model: Any,
                           model_dir_path: Path,
                           meta: ExperimentMetadata,
-                          fold_id: str) -> Path:
-    """Сохраняет checkpoint per-fold.
+                          fold_id: str,
+                          *, epoch: int | None = None) -> Path:
+    """Сохраняет checkpoint per-fold (опционально per-epoch).
 
     PyTorch nn.Module → state_dict в .pt (без metadata внутри файла);
     остальное → joblib.dump в .joblib.
+
+    epoch=None — финальный/единственный checkpoint;
+    epoch=int  — промежуточный checkpoint после конкретной эпохи.
     """
     model_dir_path = Path(model_dir_path)
     model_dir_path.mkdir(parents=True, exist_ok=True)
 
     is_torch = (torch is not None) and isinstance(model, torch.nn.Module)
     ext = "pt" if is_torch else "joblib"
-    path = model_dir_path / build_checkpoint_filename(meta, fold_id, ext)
+    path = model_dir_path / build_checkpoint_filename(meta, fold_id, ext, epoch=epoch)
 
     if is_torch:
         torch.save(model.state_dict(), path)
