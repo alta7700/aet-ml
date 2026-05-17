@@ -10,10 +10,13 @@
 Для stateful LSTM (LSTM7..LSTM12) runner отличается — берётся lstm_stateful_runner.py.
 
 Опции:
-  --gpu-only   только NN-задачи без линейных моделей. Порядок при этом
-               сохраняет первые 168 job_id совместимыми с уже сгенерированным
-               GPU-only планом: сначала non-stateful LSTM, затем TCN, затем
-               stateful LSTM.
+  --gpu-only         только NN-задачи без линейных моделей. Порядок при этом
+                     сохраняет первые 168 job_id совместимыми с уже
+                     сгенерированным GPU-only планом: сначала non-stateful
+                     LSTM, затем TCN, затем stateful LSTM.
+  --families Lin ...  ограничить генерацию выбранными семействами. Допустимые
+                     значения: Lin, LSTM, TCN. Можно передать несколько
+                     значений через пробел или через запятую.
 
 Выход: orchestrator/jobs.csv.
   job_id, runner, architecture_id, target, feature_set, with_abs, wavelet_mode, cmd
@@ -74,11 +77,34 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="генератор jobs.csv для orchestrator'а")
     p.add_argument("--gpu-only", action="store_true",
                    help="только NN-задачи без Lin; порядок сохраняет совместимость job_id")
+    p.add_argument(
+        "--families",
+        nargs="+",
+        default=None,
+        help="какие семейства генерировать: Lin, LSTM, TCN; можно через пробел или запятую",
+    )
     return p.parse_args()
+
+
+def _parse_families(raw: list[str] | None) -> set[str] | None:
+    """Нормализует список семейств из CLI."""
+    if not raw:
+        return None
+    out: set[str] = set()
+    for item in raw:
+        for part in item.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if part not in {"Lin", "LSTM", "TCN"}:
+                raise SystemExit(f"Неизвестное семейство: {part!r}. Допустимо: Lin, LSTM, TCN")
+            out.add(part)
+    return out
 
 
 def main() -> None:
     args = parse_args()
+    families = _parse_families(args.families)
     rows: list[dict] = []
     n = 0
 
@@ -101,32 +127,36 @@ def main() -> None:
     if not args.gpu_only:
         # Лин — батч-режим: одна job на весь декартов набор Lin × target × fset × abs.
         # Работает на CPU (joblib parallel), не нагружает GPU.
-        n += 1
-        rows.append({
-            "job_id": f"J{n:04d}",
-            "runner": "linear_runner.py",
-            "architecture_id": "ALL_LIN",
-            "target": "both",
-            "feature_set": "all",
-            "with_abs": "both",
-            "wavelet_mode": "none",
-            "cmd": "PYTHONPATH=. uv run python linear_runner.py --grid-all",
-        })
+        if families is None or "Lin" in families:
+            n += 1
+            rows.append({
+                "job_id": f"J{n:04d}",
+                "runner": "linear_runner.py",
+                "architecture_id": "ALL_LIN",
+                "target": "both",
+                "feature_set": "all",
+                "with_abs": "both",
+                "wavelet_mode": "none",
+                "cmd": "PYTHONPATH=. uv run python linear_runner.py --grid-all",
+            })
 
-    if args.gpu_only:
-        for arch in LSTM_ARCHS:
-            if _is_stateful_lstm(arch):
-                continue
-            add(arch, FEATURE_SETS_NN)
-        for arch in TCN_ARCHS:
-            add(arch, FEATURE_SETS_NN)
-        for arch in LSTM_ARCHS:
-            if not _is_stateful_lstm(arch):
-                continue
-            add(arch, FEATURE_SETS_NN)
-    else:
-        for arch in LSTM_ARCHS:
-            add(arch, FEATURE_SETS_NN)
+    selected_families = families or {"Lin", "LSTM", "TCN"}
+
+    if "LSTM" in selected_families:
+        if args.gpu_only:
+            for arch in LSTM_ARCHS:
+                if _is_stateful_lstm(arch):
+                    continue
+                add(arch, FEATURE_SETS_NN)
+            for arch in LSTM_ARCHS:
+                if not _is_stateful_lstm(arch):
+                    continue
+                add(arch, FEATURE_SETS_NN)
+        else:
+            for arch in LSTM_ARCHS:
+                add(arch, FEATURE_SETS_NN)
+
+    if "TCN" in selected_families:
         for arch in TCN_ARCHS:
             add(arch, FEATURE_SETS_NN)
 

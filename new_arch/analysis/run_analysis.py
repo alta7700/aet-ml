@@ -29,7 +29,7 @@ if str(_ROOT) not in sys.path:
 
 from analysis import (
     aggregation, comparisons as cmp_mod, conclusions, conformal as conf_mod,
-    loader, plotting, ranking as ranking_mod, reporting,
+    loader, lt_search_viz, plotting, ranking as ranking_mod, reporting,
     training_dynamics as td_mod, validation,
 )
 from analysis.schemas import AnalysisConfig, load_config
@@ -270,6 +270,14 @@ def main() -> None:
         sp = sub.add_parser(name)
         _add_common(sp)
 
+    sp = sub.add_parser("viz-lt-search",
+                        help="схематические фигуры поиска LT1/LT2 по субъектам")
+    _add_common(sp)
+    sp.add_argument("--subject", type=str, default=None,
+                    help="один subject_id; без флага — все")
+    sp.add_argument("--data-root", type=Path, default=None,
+                    help="путь к каталогу с подпапками субъектов (default: ../data)")
+
     args = parser.parse_args()
     cfg = load_config(args.config if args.config.exists() else None)
     cfg = _resolve_paths(cfg, args)
@@ -291,6 +299,13 @@ def main() -> None:
         return
     if args.cmd == "conclude":
         cmd_conclude(cfg)
+        return
+
+    if args.cmd == "viz-lt-search":
+        saved = lt_search_viz.make_all(
+            cfg, data_root=args.data_root, subject=args.subject)
+        print(f"viz-lt-search: сохранено {len(saved)} фигур в "
+              f"{cfg.figures_dir / 'lt_search'}")
         return
 
     # all: один сквозной прогон, передаём кэш по цепочке

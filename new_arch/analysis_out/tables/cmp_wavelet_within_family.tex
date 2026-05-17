@@ -5,18 +5,18 @@
 \toprule
 comparison_kind & group_key & metric & condition_a & condition_b & n_subjects & mean_a & mean_b & delta_mean & wilcoxon_pvalue & pvalue_adj & reject_at_alpha & cohens_d & cliffs_delta \\
 \midrule
-wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG & abs_lt_err_median_sec & cwt & none & 18 & 208.946 & 216.380 & -7.434 & 0.495 & 0.932 & False & -0.068 & -0.105 \\
-wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS & abs_lt_err_median_sec & cwt & none & 18 & 190.494 & 174.161 & 16.333 & 0.671 & 0.932 & False & 0.135 & 0.031 \\
-wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS+HRV & abs_lt_err_median_sec & cwt & none & 18 & 176.884 & 154.058 & 22.826 & 0.347 & 0.932 & False & 0.251 & 0.000 \\
-wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG & abs_lt_err_median_sec & cwt & none & 18 & 175.614 & 179.937 & -4.323 & 0.580 & 0.932 & False & -0.039 & 0.019 \\
-wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS & abs_lt_err_median_sec & cwt & none & 18 & 189.727 & 203.436 & -13.709 & 0.799 & 0.932 & False & -0.180 & 0.000 \\
-wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS+HRV & abs_lt_err_median_sec & cwt & none & 18 & 149.214 & 150.008 & -0.794 & 0.932 & 0.932 & False & -0.013 & 0.031 \\
-wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG & mae & cwt & none & 18 & 224.138 & 219.297 & 4.841 & 0.899 & 0.899 & False & 0.049 & -0.074 \\
-wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS & mae & cwt & none & 18 & 212.832 & 196.739 & 16.093 & 0.702 & 0.899 & False & 0.146 & 0.019 \\
-wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS+HRV & mae & cwt & none & 18 & 193.503 & 172.764 & 20.739 & 0.304 & 0.899 & False & 0.282 & 0.049 \\
-wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG & mae & cwt & none & 18 & 193.400 & 208.041 & -14.640 & 0.167 & 0.899 & False & -0.161 & -0.049 \\
-wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS & mae & cwt & none & 18 & 204.730 & 217.726 & -12.996 & 0.702 & 0.899 & False & -0.186 & -0.025 \\
-wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS+HRV & mae & cwt & none & 18 & 167.890 & 169.673 & -1.783 & 0.865 & 0.899 & False & -0.035 & -0.012 \\
+wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG & abs_lt_err_median_sec & cwt & none & 18 & 212.313 & 211.370 & 0.944 & 0.799 & 0.865 & False & 0.009 & -0.043 \\
+wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS & abs_lt_err_median_sec & cwt & none & 18 & 194.001 & 181.086 & 12.915 & 0.734 & 0.865 & False & 0.115 & 0.031 \\
+wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS+HRV & abs_lt_err_median_sec & cwt & none & 18 & 178.145 & 157.525 & 20.620 & 0.393 & 0.865 & False & 0.238 & 0.000 \\
+wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG & abs_lt_err_median_sec & cwt & none & 18 & 177.076 & 176.828 & 0.248 & 0.766 & 0.865 & False & 0.002 & 0.025 \\
+wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS & abs_lt_err_median_sec & cwt & none & 18 & 184.663 & 195.681 & -11.018 & 0.865 & 0.865 & False & -0.143 & 0.006 \\
+wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS+HRV & abs_lt_err_median_sec & cwt & none & 18 & 149.180 & 149.532 & -0.351 & 0.766 & 0.865 & False & -0.006 & 0.031 \\
+wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG & mae & cwt & none & 18 & 225.798 & 216.559 & 9.239 & 0.966 & 0.966 & False & 0.100 & -0.049 \\
+wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS & mae & cwt & none & 18 & 214.287 & 200.169 & 14.117 & 0.671 & 0.966 & False & 0.138 & 0.012 \\
+wavelet_within_family & family=LSTM|target=lt1|feature_set=EMG+NIRS+HRV & mae & cwt & none & 18 & 195.430 & 177.893 & 17.537 & 0.523 & 0.966 & False & 0.240 & 0.012 \\
+wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG & mae & cwt & none & 18 & 195.614 & 206.618 & -11.004 & 0.265 & 0.966 & False & -0.109 & -0.043 \\
+wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS & mae & cwt & none & 18 & 200.133 & 211.117 & -10.984 & 0.832 & 0.966 & False & -0.158 & -0.025 \\
+wavelet_within_family & family=LSTM|target=lt2|feature_set=EMG+NIRS+HRV & mae & cwt & none & 18 & 168.046 & 169.670 & -1.623 & 0.799 & 0.966 & False & -0.032 & -0.019 \\
 \bottomrule
 \end{tabular}
 \end{table}

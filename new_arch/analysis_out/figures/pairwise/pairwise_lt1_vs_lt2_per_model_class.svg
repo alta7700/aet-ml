@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-05-17T17:16:04.923798</dc:date>
+    <dc:date>2026-05-17T18:02:49.478956</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -42,7 +42,7 @@ z
      <g id="line2d_1">
       <path d="M 147.927375 241.86 
 L 147.927375 20.1 
-" clip-path="url(#pb4684eb422)" style="fill: none; stroke: #cccccc; stroke-width: 0.8; stroke-linecap: round"/>
+" clip-path="url(#pa238c78269)" style="fill: none; stroke: #cccccc; stroke-width: 0.8; stroke-linecap: round"/>
      </g>
      <g id="text_1">
       <!-- lt2 -->
@@ -272,7 +272,7 @@ z
      <g id="line2d_2">
       <path d="M 36.327375 130.98 
 L 259.527375 130.98 
-" clip-path="url(#pb4684eb422)" style="fill: none; stroke: #cccccc; stroke-width: 0.8; stroke-linecap: round"/>
+" clip-path="url(#pa238c78269)" style="fill: none; stroke: #cccccc; stroke-width: 0.8; stroke-linecap: round"/>
      </g>
      <g id="text_3">
       <!-- lt1 -->
@@ -364,11 +364,11 @@ L 259.527375 20.1
 L 259.527375 241.86 
 L 36.327375 241.86 
 L 36.327375 20.1 
-" clip-path="url(#pb4684eb422)" style="fill: #dbdcde"/>
+" clip-path="url(#pa238c78269)" style="fill: #dadce0"/>
    </g>
    <g id="text_5">
-    <!-- 0.504 -->
-    <g style="fill: #262626" transform="translate(135.916875 133.46175) scale(0.096 -0.096)">
+    <!-- 0.511 -->
+    <g style="fill: #262626" transform="translate(136.270875 133.46175) scale(0.096 -0.096)">
      <defs>
       <path id="ArialMT-30" d="M 266 2259 
 Q 266 3072 433 3567 
@@ -427,31 +427,12 @@ Q 1113 -78 717 272
 Q 322 622 266 1200 
 z
 " transform="scale(0.015625)"/>
-      <path id="ArialMT-34" d="M 2069 0 
-L 2069 1097 
-L 81 1097 
-L 81 1613 
-L 2172 4581 
-L 2631 4581 
-L 2631 1613 
-L 3250 1613 
-L 3250 1097 
-L 2631 1097 
-L 2631 0 
-L 2069 0 
-z
-M 2069 1613 
-L 2069 3678 
-L 634 1613 
-L 2069 1613 
-z
-" transform="scale(0.015625)"/>
      </defs>
      <use xlink:href="#ArialMT-30"/>
      <use xlink:href="#ArialMT-2e" transform="translate(55.615234 0)"/>
      <use xlink:href="#ArialMT-35" transform="translate(83.398438 0)"/>
-     <use xlink:href="#ArialMT-30" transform="translate(139.013672 0)"/>
-     <use xlink:href="#ArialMT-34" transform="translate(194.628906 0)"/>
+     <use xlink:href="#ArialMT-31" transform="translate(139.013672 0)"/>
+     <use xlink:href="#ArialMT-31" transform="translate(187.253906 0)"/>
     </g>
    </g>
    <g id="text_6">
@@ -747,12 +728,12 @@ z
     <g id="ytick_2">
      <g id="line2d_3">
       <defs>
-       <path id="ma78e37fe9f" d="M 0 0 
+       <path id="m14905410a4" d="M 0 0 
 L 4.8 0 
 " style="stroke: #262626"/>
       </defs>
       <g>
-       <use xlink:href="#ma78e37fe9f" x="284.565375" y="241.86" style="fill: #262626; stroke: #262626"/>
+       <use xlink:href="#m14905410a4" x="284.565375" y="241.86" style="fill: #262626; stroke: #262626"/>
       </g>
      </g>
      <g id="text_7">
@@ -767,7 +748,7 @@ L 4.8 0
     <g id="ytick_3">
      <g id="line2d_4">
       <g>
-       <use xlink:href="#ma78e37fe9f" x="284.565375" y="197.508" style="fill: #262626; stroke: #262626"/>
+       <use xlink:href="#m14905410a4" x="284.565375" y="197.508" style="fill: #262626; stroke: #262626"/>
       </g>
      </g>
      <g id="text_8">
@@ -782,12 +763,33 @@ L 4.8 0
     <g id="ytick_4">
      <g id="line2d_5">
       <g>
-       <use xlink:href="#ma78e37fe9f" x="284.565375" y="153.156" style="fill: #262626; stroke: #262626"/>
+       <use xlink:href="#m14905410a4" x="284.565375" y="153.156" style="fill: #262626; stroke: #262626"/>
       </g>
      </g>
      <g id="text_9">
       <!-- 0.4 -->
       <g style="fill: #262626" transform="translate(292.865375 156.305437) scale(0.088 -0.088)">
+       <defs>
+        <path id="ArialMT-34" d="M 2069 0 
+L 2069 1097 
+L 81 1097 
+L 81 1613 
+L 2172 4581 
+L 2631 4581 
+L 2631 1613 
+L 3250 1613 
+L 3250 1097 
+L 2631 1097 
+L 2631 0 
+L 2069 0 
+z
+M 2069 1613 
+L 2069 3678 
+L 634 1613 
+L 2069 1613 
+z
+" transform="scale(0.015625)"/>
+       </defs>
        <use xlink:href="#ArialMT-30"/>
        <use xlink:href="#ArialMT-2e" transform="translate(55.615234 0)"/>
        <use xlink:href="#ArialMT-34" transform="translate(83.398438 0)"/>
@@ -797,7 +799,7 @@ L 4.8 0
     <g id="ytick_5">
      <g id="line2d_6">
       <g>
-       <use xlink:href="#ma78e37fe9f" x="284.565375" y="108.804" style="fill: #262626; stroke: #262626"/>
+       <use xlink:href="#m14905410a4" x="284.565375" y="108.804" style="fill: #262626; stroke: #262626"/>
       </g>
      </g>
      <g id="text_10">
@@ -847,7 +849,7 @@ z
     <g id="ytick_6">
      <g id="line2d_7">
       <g>
-       <use xlink:href="#ma78e37fe9f" x="284.565375" y="64.452" style="fill: #262626; stroke: #262626"/>
+       <use xlink:href="#m14905410a4" x="284.565375" y="64.452" style="fill: #262626; stroke: #262626"/>
       </g>
      </g>
      <g id="text_11">
@@ -904,7 +906,7 @@ z
     <g id="ytick_7">
      <g id="line2d_8">
       <g>
-       <use xlink:href="#ma78e37fe9f" x="284.565375" y="20.1" style="fill: #262626; stroke: #262626"/>
+       <use xlink:href="#m14905410a4" x="284.565375" y="20.1" style="fill: #262626; stroke: #262626"/>
       </g>
      </g>
      <g id="text_12">
@@ -918,7 +920,7 @@ z
     </g>
    </g>
    <image xlink:href="data:image/png;base64,
-iVBORw0KGgoAAAANSUhEUgAAABcAAAHOCAYAAABzbJLzAAACz0lEQVR4nO2YwZEkQQgDhbbWlfP/cfbBGTB9T01HVoABGYSQoLrr7/kzCtWp30qx5RhZ0vGhdl6/Ob5jZME1rxjcWM3PyvKCFX+wVvyhdl5OhugHu89/dqCftZp/f3GdMjVEFdwtjpG18X/JLU7CKwZ3jKy14nVWNPg5Z2qICty5Y3DHyNrFdd9ACxyiisEdI2vdcl+IVFwrVgzuGFlot1T2OecY3DGy4FYs6uIy1i1F1bz2l8hlVjTWikXVXHtD77KisFYsruZO/pyvleWz1oq3xV/RS1Qry03vc8fIQv+GUvISCStLga3oGNzYfe4YWeFjcbiyiGvFwmpuruYOwo0daHEHWjG4Y2TBQ1RJuGNwx8jagf6ndnG9ESJTQzTcfV5UzYXtfNYtD7WPosdaK94Xf+fgwu6WwQ5UWM2F1Xz2a+6hzohqxcFaUdjOJxmiwcoi7D4frOazi+syKwprxcJqXljNtZfoLisK23ltiD5rZXmsteJ98a8gfLCyaLfiZ+0NvS7+2vh/1g70Mis6Rlb4zJ3myiJs54PtXNjOJ3mJtLJ8e6AdhDvI1sb/sVaWN0I0ObhzaO3Kfa4z2IH23tAXLpFiZe6PhebKMtyHqGLlHFrsxaUkvGJwx8iCx1+xcg4t8nOusyFSrJxDi9x5YxfXYDUfbOe9N/ShdqCPtSF64SHa2N0y2M47+HfeObTIms+G6KHOBHVxjCy0FXvj/1B7id4IUVPj39j4T/QSNXWgswN9IUSDXVwKwocqS4OfFhODO0YW+xJ1rvXD3ecNvqETgxu7z429oYc70AaHSLFyDi3219zk4IOVZbCd94boofb6f/9YHO4NHWz8B9t5r1vuClFjrTjczgfbeec+RA/YioPtvLfz79/QzsFnB/pQG//HOh3c5yb/nO8Y3DGyNv7X7XODQ9Qry/cvUcfgjpHFfvz3PueusuKsFR8qqvk/J1JB75GWE84AAAAASUVORK5CYII=" id="imagead660fdb60" transform="scale(1 -1) translate(0 -221.76)" x="273.6" y="-19.68" width="11.04" height="221.76"/>
+iVBORw0KGgoAAAANSUhEUgAAABcAAAHOCAYAAABzbJLzAAACz0lEQVR4nO2YwZEkQQgDhbbWlfP/cfbBGTB9T01HVoABGYSQoLrr7/kzCtWp30qx5RhZ0vGhdl6/Ob5jZME1rxjcWM3PyvKCFX+wVvyhdl5OhugHu89/dqCftZp/f3GdMjVEFdwtjpG18X/JLU7CKwZ3jKy14nVWNPg5Z2qICty5Y3DHyNrFdd9ACxyiisEdI2vdcl+IVFwrVgzuGFlot1T2OecY3DGy4FYs6uIy1i1F1bz2l8hlVjTWikXVXHtD77KisFYsruZO/pyvleWz1oq3xV/RS1Qry03vc8fIQv+GUvISCStLga3oGNzYfe4YWeFjcbiyiGvFwmpuruYOwo0daHEHWjG4Y2TBQ1RJuGNwx8jagf6ndnG9ESJTQzTcfV5UzYXtfNYtD7WPosdaK94Xf+fgwu6WwQ5UWM2F1Xz2a+6hzohqxcFaUdjOJxmiwcoi7D4frOazi+syKwprxcJqXljNtZfoLisK23ltiD5rZXmsteJ98a8gfLCyaLfiZ+0NvS7+2vh/1g70Mis6Rlb4zJ3myiJs54PtXNjOJ3mJtLJ8e6AdhDvI1sb/sVaWN0I0ObhzaO3Kfa4z2IH23tAXLpFiZe6PhebKMtyHqGLlHFrsxaUkvGJwx8iCx1+xcg4t8nOusyFSrJxDi9x5YxfXYDUfbOe9N/ShdqCPtSF64SHa2N0y2M47+HfeObTIms+G6KHOBHVxjCy0FXvj/1B7id4IUVPj39j4T/QSNXWgswN9IUSDXVwKwocqS4OfFhODO0YW+xJ1rvXD3ecNvqETgxu7z429oYc70AaHSLFyDi3219zk4IOVZbCd94boofb6f/9YHO4NHWz8B9t5r1vuClFjrTjczgfbeec+RA/YioPtvLfz79/QzsFnB/pQG//HOh3c5yb/nO8Y3DGyNv7X7XODQ9Qry/cvUcfgjpHFfvz3PueusuKsFR8qqvk/J1JB75GWE84AAAAASUVORK5CYII=" id="image84eb973707" transform="scale(1 -1) translate(0 -221.76)" x="273.6" y="-19.68" width="11.04" height="221.76"/>
    <g id="LineCollection_1"/>
    <g id="patch_4">
     <path d="M 273.477375 241.86 
@@ -934,7 +936,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="pb4684eb422">
+  <clipPath id="pa238c78269">
    <rect x="36.327375" y="20.1" width="223.2" height="221.76"/>
   </clipPath>
  </defs>

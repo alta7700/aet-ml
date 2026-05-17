@@ -117,7 +117,8 @@ TRAINING_SUMMARY_COLUMNS: list[str] = [
     "final_train_loss_mean",
     "train_mae_slope_last_K_mean", "train_loss_slope_last_K_mean",
     "training_instability_mean", "converged_rate",
-    "stability_window_epochs", "convergence_slope_threshold",
+    "relative_change_last_K_mean",
+    "stability_window_epochs", "convergence_relative_threshold",
 ]
 
 CONFORMAL_INTERVAL_COLUMNS: list[str] = [
@@ -248,8 +249,12 @@ class AnalysisConfig:
     conformal_bootstrap_seed: int = 17
 
     # Training stability — параметры из history.csv.
+    # convergence_relative_threshold: считаем "сошёлся" если
+    # |slope_last_K| * K / mean(train_mae_last_K) < threshold,
+    # т.е. относительное изменение метрики за окно меньше доли threshold.
+    # Default = 0.05 → за последние K эпох train_mae меняется меньше чем на 5%.
     stability_window_epochs: int = 10
-    convergence_slope_threshold: float = 0.2   # |Δtrain_mae per epoch|, sec/epoch
+    convergence_relative_threshold: float = 0.05
 
     # Plotting / reporting
     top_n: int = 10

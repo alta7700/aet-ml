@@ -922,7 +922,7 @@ def render_emg_axis(
         color=channel_color,
         linewidth=0.35,
         alpha=0.9,
-        label=f"{emg_channel.channel_name} (ЭМГ)",
+        label=f"VL {"дистальный" if emg_channel.channel_name == "trigno.vl.avanti" else "Проксимальный"} (ЭМГ)",
     )
     ax.plot(
         emg_window_timestamps,
@@ -1059,7 +1059,7 @@ def render_emg_axis(
         f"{emg_channel.channel_name} | окно {window_start_sec:.1f}–{window_end_sec:.1f} с{suffix}"
     )
     ax.set_xlabel("Время, с")
-    ax.set_ylabel("ЭМГ, отн. ед.")
+    ax.set_ylabel("ЭМГ, нормированный")
     ax.legend(loc="upper left")
 
 

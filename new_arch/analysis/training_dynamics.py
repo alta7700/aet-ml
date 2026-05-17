@@ -81,8 +81,12 @@ def _instability(values: np.ndarray, k: int) -> float:
 
 
 def _per_fold_features(history: pd.DataFrame, *, window: int,
-                       slope_threshold: float) -> pd.DataFrame:
-    """Сворачивает history.csv в одну строку на fold."""
+                       relative_threshold: float) -> pd.DataFrame:
+    """Сворачивает history.csv в одну строку на fold.
+
+    Сходимость считается относительно: |slope|·K / mean(train_mae_last_K)
+    меньше ``relative_threshold`` (default 0.05 → менее 5% изменения за окно).
+    """
     out: list[dict] = []
     for fold_id, g in history.groupby("fold_id", observed=True):
         g = g.sort_values("epoch", kind="stable")
@@ -90,6 +94,17 @@ def _per_fold_features(history: pd.DataFrame, *, window: int,
         train_loss = g["train_loss"].to_numpy(dtype=float)
         mae_slope = _slope_last_k(train_mae, window)
         loss_slope = _slope_last_k(train_loss, window)
+
+        # относительный масштаб
+        tail = train_mae[-window:] if len(train_mae) >= window else train_mae
+        base = float(np.mean(tail)) if tail.size else float("nan")
+        if np.isnan(mae_slope) or not np.isfinite(base) or base <= 0:
+            relative_change = float("nan")
+            converged = False
+        else:
+            relative_change = abs(mae_slope) * min(window, len(train_mae)) / base
+            converged = bool(relative_change < relative_threshold)
+
         out.append({
             "fold_id": fold_id,
             "n_epochs": int(len(g)),
@@ -97,8 +112,9 @@ def _per_fold_features(history: pd.DataFrame, *, window: int,
             "final_train_loss": float(train_loss[-1]) if train_loss.size else float("nan"),
             "train_mae_slope_last_K": mae_slope,
             "train_loss_slope_last_K": loss_slope,
+            "relative_change_last_K": relative_change,
             "training_instability": _instability(train_mae, window),
-            "converged": bool(abs(mae_slope) < slope_threshold) if not np.isnan(mae_slope) else False,
+            "converged": converged,
         })
     return pd.DataFrame(out)
 
@@ -118,7 +134,7 @@ def build_training_dynamics(disc: DiscoveryResult,
     """
     meta_df = disc.models_df.set_index("model_id", drop=False)
     window = cfg.stability_window_epochs
-    slope_thr = cfg.convergence_slope_threshold
+    rel_thr = cfg.convergence_relative_threshold
 
     dyn_rows: list[pd.DataFrame] = []
     summary_rows: list[dict] = []
@@ -146,7 +162,7 @@ def build_training_dynamics(disc: DiscoveryResult,
 
         # per-fold scalars и сворачивание в одну строку на model_id
         fold_feat = _per_fold_features(
-            history, window=window, slope_threshold=slope_thr)
+            history, window=window, relative_threshold=rel_thr)
         summary_rows.append({
             "model_id": model_id,
             "architecture_id": str(meta["architecture_id"]),
@@ -167,8 +183,10 @@ def build_training_dynamics(disc: DiscoveryResult,
             "training_instability_mean": float(np.nanmean(
                 fold_feat["training_instability"])),
             "converged_rate": float(fold_feat["converged"].mean()),
+            "relative_change_last_K_mean": float(np.nanmean(
+                fold_feat["relative_change_last_K"])),
             "stability_window_epochs": window,
-            "convergence_slope_threshold": slope_thr,
+            "convergence_relative_threshold": rel_thr,
         })
 
     dynamics_df = (pd.concat(dyn_rows, ignore_index=True)

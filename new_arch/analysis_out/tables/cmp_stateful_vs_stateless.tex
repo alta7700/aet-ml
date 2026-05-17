@@ -1,0 +1,34 @@
+\begin{table}
+\caption{Сравнение: stateful_vs_stateless}
+\label{tab:cmp_stateful_vs_stateless}
+\begin{tabular}{lllllrrrrrrrrr}
+\toprule
+comparison_kind & group_key & metric & condition_a & condition_b & n_subjects & mean_a & mean_b & delta_mean & wilcoxon_pvalue & pvalue_adj & reject_at_alpha & cohens_d & cliffs_delta \\
+\midrule
+stateful_vs_stateless & target=lt1|feature_set=EMG|with_abs=False & abs_lt_err_median_sec & stateful & stateless & 18 & 216.066 & 212.663 & 3.403 & 0.640 & 0.853 & False & 0.079 & -0.012 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG|with_abs=True & abs_lt_err_median_sec & stateful & stateless & 18 & 205.081 & 212.663 & -7.582 & 0.347 & 0.594 & False & -0.168 & -0.068 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS|with_abs=False & abs_lt_err_median_sec & stateful & stateless & 18 & 194.601 & 181.712 & 12.889 & 0.212 & 0.594 & False & 0.279 & 0.080 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS|with_abs=True & abs_lt_err_median_sec & stateful & stateless & 18 & 201.473 & 182.943 & 18.530 & 0.196 & 0.594 & False & 0.353 & 0.142 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=False & abs_lt_err_median_sec & stateful & stateless & 18 & 165.811 & 158.192 & 7.619 & 0.090 & 0.539 & False & 0.213 & 0.111 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=True & abs_lt_err_median_sec & stateful & stateless & 18 & 176.850 & 172.750 & 4.100 & 0.609 & 0.853 & False & 0.102 & 0.068 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG|with_abs=False & abs_lt_err_median_sec & stateful & stateless & 18 & 181.006 & 177.775 & 3.231 & 0.347 & 0.594 & False & 0.046 & 0.068 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG|with_abs=True & abs_lt_err_median_sec & stateful & stateless & 18 & 184.558 & 177.775 & 6.782 & 0.265 & 0.594 & False & 0.099 & 0.080 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS|with_abs=False & abs_lt_err_median_sec & stateful & stateless & 18 & 183.733 & 183.290 & 0.443 & 0.932 & 0.932 & False & 0.007 & 0.019 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS|with_abs=True & abs_lt_err_median_sec & stateful & stateless & 18 & 177.157 & 209.873 & -32.716 & 0.060 & 0.539 & False & -0.505 & -0.160 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=False & abs_lt_err_median_sec & stateful & stateless & 18 & 160.832 & 160.985 & -0.153 & 0.932 & 0.932 & False & -0.003 & -0.019 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=True & abs_lt_err_median_sec & stateful & stateless & 18 & 135.299 & 138.237 & -2.938 & 0.932 & 0.932 & False & -0.067 & -0.080 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG|with_abs=False & mae & stateful & stateless & 18 & 225.420 & 221.717 & 3.702 & 0.468 & 0.702 & False & 0.111 & 0.012 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG|with_abs=True & mae & stateful & stateless & 18 & 214.705 & 221.717 & -7.012 & 0.417 & 0.702 & False & -0.227 & -0.062 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS|with_abs=False & mae & stateful & stateless & 18 & 206.375 & 204.246 & 2.129 & 0.865 & 0.899 & False & 0.071 & -0.019 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS|with_abs=True & mae & stateful & stateless & 18 & 216.270 & 205.324 & 10.945 & 0.442 & 0.702 & False & 0.221 & 0.068 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=False & mae & stateful & stateless & 18 & 186.329 & 179.659 & 6.670 & 0.229 & 0.549 & False & 0.205 & 0.074 \\
+stateful_vs_stateless & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=True & mae & stateful & stateless & 18 & 199.287 & 186.608 & 12.679 & 0.154 & 0.462 & False & 0.334 & 0.123 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG|with_abs=False & mae & stateful & stateless & 18 & 206.425 & 200.721 & 5.704 & 0.130 & 0.462 & False & 0.097 & 0.086 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG|with_abs=True & mae & stateful & stateless & 18 & 213.546 & 200.721 & 12.825 & 0.027 & 0.161 & False & 0.236 & 0.123 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS|with_abs=False & mae & stateful & stateless & 18 & 201.672 & 203.216 & -1.543 & 0.799 & 0.899 & False & -0.029 & 0.006 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS|with_abs=True & mae & stateful & stateless & 18 & 195.312 & 219.241 & -23.928 & 0.027 & 0.161 & False & -0.461 & -0.123 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=False & mae & stateful & stateless & 18 & 185.128 & 180.892 & 4.236 & 0.832 & 0.899 & False & 0.111 & 0.019 \\
+stateful_vs_stateless & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=True & mae & stateful & stateless & 18 & 153.521 & 156.671 & -3.150 & 0.899 & 0.899 & False & -0.113 & -0.025 \\
+\bottomrule
+\end{tabular}
+\end{table}
