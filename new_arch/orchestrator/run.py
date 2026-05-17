@@ -1,8 +1,10 @@
-"""orchestrator/run.py — управление запусками с двумя GPU-порогами.
+"""orchestrator/run.py — управление запусками с порогами GPU и host RAM.
 
 Запускает задачи из jobs.csv последовательно/параллельно с условиями:
   • GPU utilization < --gpu-util-threshold (%);
   • GPU memory used / total < --gpu-mem-threshold (%).
+  • Host RAM used / total < --host-mem-threshold (%).
+  • Число одновременно running job'ов < --max-running.
 Если хотя бы один порог сработал — новые задачи не стартуют.
 
 Работает только на CUDA-машине (через nvidia-ml-py / NVML).
@@ -21,7 +23,8 @@ status ∈ {queued, running, done, failed, died}.
 Использование:
   PYTHONPATH=. uv run python orchestrator/run.py \
       --jobs orchestrator/jobs.csv \
-      --gpu-util-threshold 85 --gpu-mem-threshold 80 \
+      --gpu-util-threshold 85 --gpu-mem-threshold 75 --host-mem-threshold 50 \
+      --max-running 5 \
       --poll-interval 10
 
 Прерывание (Ctrl-C): orchestrator выходит, дочерние процессы продолжают.
@@ -111,6 +114,26 @@ class GpuMonitor:
         return int(round(100 * m.used / max(m.total, 1)))
 
 
+def host_mem_used_pct() -> int:
+    """Доля занятой host RAM по данным /proc/meminfo.
+
+    Используем MemAvailable, потому что она лучше отражает реальный запас памяти
+    под новые процессы, чем просто поле MemFree.
+    """
+    meminfo: dict[str, int] = {}
+    with open("/proc/meminfo", "r", encoding="utf-8") as f:
+        for line in f:
+            key, value = line.split(":", 1)
+            parts = value.strip().split()
+            if not parts:
+                continue
+            meminfo[key] = int(parts[0])
+    total_kib = meminfo.get("MemTotal", 0)
+    avail_kib = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
+    used_kib = max(total_kib - avail_kib, 0)
+    return int(round(100 * used_kib / max(total_kib, 1)))
+
+
 # ─── State I/O ──────────────────────────────────────────────────────────────
 
 def load_state(state_csv: Path) -> dict[str, Job]:
@@ -178,16 +201,56 @@ def merge_with_state(plan: list[Job], state: dict[str, Job]) -> list[Job]:
 
 # ─── PID и launch ────────────────────────────────────────────────────────────
 
+def _proc_state(pid: int) -> Optional[str]:
+    """Возвращает однобуквенный State из /proc/PID/status (R/S/D/Z/T/...) или None.
+
+    Нужно, чтобы отличать живой процесс от zombie (`Z`): для zombie
+    `os.kill(pid, 0)` всё ещё успешен (запись в process table есть),
+    но это уже мёртвый процесс, ожидающий wait() от родителя.
+    """
+    try:
+        with open(f"/proc/{pid}/status", "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("State:"):
+                    # Формат: 'State:\tZ (zombie)'
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        return parts[1]
+                    return None
+    except (FileNotFoundError, ProcessLookupError, PermissionError, OSError):
+        return None
+    return None
+
+
 def pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     try:
         os.kill(pid, 0)
-        return True
     except ProcessLookupError:
         return False
     except PermissionError:
         return True  # процесс существует, просто наш UID не имеет прав
+    # Доп. проверка на zombie через /proc (Linux).
+    state = _proc_state(pid)
+    if state == "Z":
+        return False
+    return True
+
+
+def _reap_zombie(pid: int) -> None:
+    """Best-effort wait() для зачистки zombie-дочернего процесса.
+
+    Работает только если pid — наш прямой child (запущенный в этой
+    сессии оркестратора). После рестарта оркестратора это no-op,
+    но zombie всё равно отсеется через _proc_state == 'Z'.
+    """
+    try:
+        os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        pass  # не наш child или уже reaped
+    except OSError:
+        pass
 
 
 def launch_job(job: Job, log_dir: Path, gpu_util: int, gpu_mem: int) -> None:
@@ -209,7 +272,10 @@ def launch_job(job: Job, log_dir: Path, gpu_util: int, gpu_mem: int) -> None:
     )
     job.pid = p.pid
     job.status = STATUS_RUNNING
-    job.log_path = str(log_path.relative_to(ROOT))
+    if log_path.is_absolute():
+        job.log_path = str(log_path.relative_to(ROOT))
+    else:
+        job.log_path = str(log_path)
     job.start_iso = dt.datetime.now().isoformat(timespec="seconds")
     job.gpu_util_at_start = gpu_util
     job.gpu_mem_pct_at_start = gpu_mem
@@ -231,7 +297,8 @@ def update_running_job(job: Job, log_dir: Path) -> bool:
         return False
     if pid_alive(job.pid):
         return False
-    # Процесс мёртв — определяем результат.
+    # Процесс мёртв (или zombie) — зачищаем и определяем результат.
+    _reap_zombie(job.pid)
     code = read_exit_code(job, log_dir)
     job.end_iso = dt.datetime.now().isoformat(timespec="seconds")
     if code is None:
@@ -262,8 +329,12 @@ def parse_args() -> argparse.Namespace:
                    default=Path(__file__).resolve().parent / "logs")
     p.add_argument("--gpu-util-threshold", type=int, default=85,
                    help="запускать новые задачи только если GPU util < N%%")
-    p.add_argument("--gpu-mem-threshold", type=int, default=80,
+    p.add_argument("--gpu-mem-threshold", type=int, default=75,
                    help="запускать новые задачи только если GPU mem used < N%%")
+    p.add_argument("--host-mem-threshold", type=int, default=50,
+                   help="запускать новые задачи только если host RAM used < N%%")
+    p.add_argument("--max-running", type=int, default=5,
+                   help="максимум одновременно running job'ов")
     p.add_argument("--poll-interval", type=int, default=10,
                    help="секунды между опросом GPU и записью state")
     p.add_argument("--gpu-index", type=int, default=0)
@@ -275,7 +346,9 @@ def main() -> None:
 
     print(f"orchestrator: jobs={args.jobs}  state={args.state}  log_dir={args.log_dir}")
     print(f"  пороги: GPU util < {args.gpu_util_threshold}%, "
-          f"GPU mem < {args.gpu_mem_threshold}%, poll={args.poll_interval}s")
+          f"GPU mem < {args.gpu_mem_threshold}%, "
+          f"host RAM < {args.host_mem_threshold}%, "
+          f"max_running < {args.max_running}, poll={args.poll_interval}s")
 
     if not args.jobs.exists():
         raise SystemExit(f"jobs.csv не найден: {args.jobs}")
@@ -291,6 +364,7 @@ def main() -> None:
     for j in jobs:
         if j.status == STATUS_RUNNING and j.pid is not None:
             if not pid_alive(j.pid):
+                _reap_zombie(j.pid)
                 code = read_exit_code(j, args.log_dir)
                 j.end_iso = dt.datetime.now().isoformat(timespec="seconds")
                 if code is None:
@@ -315,6 +389,7 @@ def main() -> None:
             # 2. Опрос GPU.
             gpu_util = monitor.util_percent()
             gpu_mem = monitor.mem_used_pct()
+            host_mem = host_mem_used_pct()
 
             # 3. Сколько задач можно запустить ещё?
             queued = [j for j in jobs if j.status == STATUS_QUEUED]
@@ -322,22 +397,26 @@ def main() -> None:
 
             # Старт новых: только если оба порога ОК.
             launched_this_tick = 0
-            if (gpu_util < args.gpu_util_threshold
-                and gpu_mem < args.gpu_mem_threshold):
+            if (len(running) < args.max_running
+                and gpu_util < args.gpu_util_threshold
+                and gpu_mem < args.gpu_mem_threshold
+                and host_mem < args.host_mem_threshold):
                 # Запускаем по одной за тик — даём метрикам обновиться.
                 if queued:
                     j = queued[0]
                     launch_job(j, args.log_dir, gpu_util, gpu_mem)
                     launched_this_tick = 1
                     print(f"  [{j.job_id}] start  pid={j.pid}  "
-                          f"util={gpu_util}%  mem={gpu_mem}%  cmd={j.cmd[:60]}...")
+                          f"util={gpu_util}%  gpu_mem={gpu_mem}%  "
+                          f"ram={host_mem}%  cmd={j.cmd[:60]}...")
 
             # 4. Save state.
             write_state_atomic(args.state, jobs)
 
             # 5. Лог сводки.
             s = summarize(jobs)
-            print(f"  tick: util={gpu_util:>3d}%  mem={gpu_mem:>3d}%  "
+            print(f"  tick: util={gpu_util:>3d}%  gpu_mem={gpu_mem:>3d}%  "
+                  f"ram={host_mem:>3d}%  "
                   f"queued={s[STATUS_QUEUED]}  running={s[STATUS_RUNNING]}  "
                   f"done={s[STATUS_DONE]}  failed={s[STATUS_FAILED]}  "
                   f"died={s[STATUS_DIED]}  +{launched_this_tick}")

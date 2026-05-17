@@ -24,12 +24,13 @@ class StatelessSeqDataset(Dataset):
     def __init__(self, X: np.ndarray, y: np.ndarray,
                  seq_len: int, internal_stride_rows: int,
                  outer_stride_rows: int):
-        self.X = X
-        self.y = y
+        # Храним базовые тензоры один раз, чтобы не делать from_numpy на каждом sample.
+        self.X = torch.from_numpy(X).float()
+        self.y = torch.from_numpy(y).float()
         self.seq_len = seq_len
         self.s = internal_stride_rows
         self.span = (seq_len - 1) * internal_stride_rows + 1
-        last_start = len(X) - self.span
+        last_start = len(self.X) - self.span
         if last_start < 0:
             self.starts = np.array([], dtype=np.int64)
         else:
@@ -42,8 +43,8 @@ class StatelessSeqDataset(Dataset):
     def __getitem__(self, idx: int):
         st = int(self.starts[idx])
         sel = st + np.arange(self.seq_len) * self.s
-        X_seq = torch.from_numpy(self.X[sel]).float()
-        y_t = torch.tensor(self.y[sel[-1]], dtype=torch.float32)
+        X_seq = self.X[sel]
+        y_t = self.y[sel[-1]]
         return X_seq, y_t
 
 

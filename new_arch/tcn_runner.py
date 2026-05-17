@@ -127,16 +127,35 @@ def _build_train_dataset(df_train: pd.DataFrame, X_tr: np.ndarray, y_tr: np.ndar
 
 def _predict_on_test(model: nn.Module, test_ds: StatelessSeqDataset,
                      batch_size: int, device: str) -> np.ndarray:
+    """Совместимость со старой сигнатурой."""
     if len(test_ds) == 0:
         return np.array([], dtype=np.float32)
     loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    return _predict_on_test_loader(model, loader, device)
+
+
+def _predict_on_test_loader(model: nn.Module, test_loader: DataLoader,
+                            device: str) -> np.ndarray:
     model.eval()
     out: list[np.ndarray] = []
     with torch.no_grad():
-        for X, _ in loader:
-            pred = model(X.to(device))
+        for X, _ in test_loader:
+            pred = model(X.to(device, non_blocking=True))
             out.append(pred.cpu().numpy())
     return np.concatenate(out) if out else np.array([], dtype=np.float32)
+
+
+def _make_loader_kwargs(device: str, num_workers: int) -> dict[str, object]:
+    """Параметры DataLoader для более дешёвого CPU→GPU пайплайна."""
+    use_pin = device == "cuda"
+    kwargs: dict[str, object] = {
+        "num_workers": num_workers,
+        "drop_last": False,
+        "pin_memory": use_pin,
+    }
+    if num_workers > 0:
+        kwargs["persistent_workers"] = True
+    return kwargs
 
 
 def _make_test_pred_rows(y_pred: np.ndarray, end_pos: np.ndarray,
@@ -170,10 +189,9 @@ def _make_test_pred_rows(y_pred: np.ndarray, end_pos: np.ndarray,
 
 
 def _train_one_fold(model: nn.Module, loader: DataLoader,
-                    test_ds: StatelessSeqDataset,
+                    test_loader: DataLoader,
                     *, max_epochs: int, checkpoint_every: int,
                     lr: float, weight_decay: float, device: str,
-                    batch_size: int,
                     fold_id: str, meta: ExperimentMetadata,
                     test_df: pd.DataFrame, y_te_raw: np.ndarray,
                     y_sc: StandardScaler, seq_len: int, int_stride_sec: int,
@@ -191,13 +209,15 @@ def _train_one_fold(model: nn.Module, loader: DataLoader,
     history: list[dict] = []
     states_by_epoch: dict[int, dict] = {}
     pred_frames: list[pd.DataFrame] = []
+    test_ds = test_loader.dataset
     end_pos = test_ds.starts + (seq_len - 1) * int_stride_rows
 
     for epoch in range(1, max_epochs + 1):
         model.train()
         loss_sum = 0.0; mae_sum = 0.0; n = 0
         for X, y in loader:
-            X = X.to(device); y = y.to(device)
+            X = X.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
             opt.zero_grad()
             pred = model(X)
             loss = criterion(pred, y)
@@ -226,7 +246,7 @@ def _train_one_fold(model: nn.Module, loader: DataLoader,
             states_by_epoch[epoch] = {
                 k: v.detach().to("cpu").clone() for k, v in model.state_dict().items()
             }
-            y_pred_norm = _predict_on_test(model, test_ds, batch_size, device)
+            y_pred_norm = _predict_on_test_loader(model, test_loader, device)
             df_frame = _make_test_pred_rows(
                 y_pred_norm, end_pos, test_df, y_te_raw, y_sc,
                 meta, fold_id, epoch, seq_len, int_stride_sec,
@@ -309,6 +329,7 @@ def run(args: argparse.Namespace) -> None:
     pred_rows: list[pd.DataFrame] = []
     history_rows: list[dict] = []
     epoch_states: dict[int, dict[str, dict]] = {}
+    loader_kwargs = _make_loader_kwargs(device, args.num_workers)
 
     t_total = time.perf_counter()
     for test_s in subjects:
@@ -341,7 +362,7 @@ def run(args: argparse.Namespace) -> None:
             continue
         train_loader = DataLoader(
             train_ds, batch_size=batch_size, shuffle=True,
-            num_workers=args.num_workers, drop_last=False,
+            **loader_kwargs,
         )
         test_ds = StatelessSeqDataset(
             X_te, y_te_norm, seq_len, int_stride_rows, out_stride_rows,
@@ -349,15 +370,18 @@ def run(args: argparse.Namespace) -> None:
         if len(test_ds) == 0:
             print(f"  [skip {fold_id}] недостаточно test-окон")
             continue
+        test_loader = DataLoader(
+            test_ds, batch_size=batch_size, shuffle=False,
+            **loader_kwargs,
+        )
 
         model = _build_tcn_model(arch, input_size=X_tr.shape[1]).to(device)
         n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
         fold_history, fold_states, fold_preds = _train_one_fold(
-            model, train_loader, test_ds,
+            model, train_loader, test_loader,
             max_epochs=max_epochs, checkpoint_every=checkpoint_every,
             lr=lr, weight_decay=weight_decay, device=device,
-            batch_size=batch_size,
             fold_id=fold_id, meta=meta,
             test_df=test_df, y_te_raw=y_te_raw, y_sc=y_sc,
             seq_len=seq_len, int_stride_sec=int_stride_sec,

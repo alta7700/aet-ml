@@ -115,7 +115,7 @@ GPU utilization < 85% **и** GPU memory < 80%.
 ```bash
 # 1. Сгенерировать список задач (jobs.csv)
 uv run python orchestrator/gen_jobs.py            # все: 1 batch Lin + 240 NN = 241 jobs
-uv run python orchestrator/gen_jobs.py --gpu-only # только NN (без Lin) = 240 jobs
+uv run python orchestrator/gen_jobs.py --gpu-only # только GPU-задачи (без Lin и CPU-only LSTM) = 168 jobs
 
 # 2. Запустить orchestrator
 uv run python orchestrator/run.py
@@ -127,7 +127,9 @@ uv run python orchestrator/run.py
 --state PATH                 путь к process.csv  (state-file для restart)
 --log-dir PATH               куда писать логи каждой job
 --gpu-util-threshold INT     порог GPU util %, по умолч. 85
---gpu-mem-threshold INT      порог GPU mem %, по умолч. 80
+--gpu-mem-threshold INT      порог GPU mem %, по умолч. 75
+--host-mem-threshold INT     порог host RAM %, по умолч. 50
+--max-running INT            максимум одновременно running job'ов, по умолч. 5
 --poll-interval INT          секунд между опросами GPU, по умолч. 10
 --gpu-index INT              номер GPU (по умолч. 0)
 ```

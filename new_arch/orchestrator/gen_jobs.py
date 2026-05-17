@@ -10,7 +10,10 @@
 Для stateful LSTM (LSTM7..LSTM12) runner отличается — берётся lstm_stateful_runner.py.
 
 Опции:
-  --gpu-only   только NN (LSTM + TCN), без линейных моделей.
+  --gpu-only   только NN-задачи без линейных моделей. Порядок при этом
+               сохраняет первые 168 job_id совместимыми с уже сгенерированным
+               GPU-only планом: сначала non-stateful LSTM, затем TCN, затем
+               stateful LSTM.
 
 Выход: orchestrator/jobs.csv.
   job_id, runner, architecture_id, target, feature_set, with_abs, wavelet_mode, cmd
@@ -52,6 +55,11 @@ def _runner_for(arch) -> str:
     raise ValueError(f"Неизвестная family={arch.family!r}")
 
 
+def _is_stateful_lstm(arch) -> bool:
+    """Является ли архитектура stateful LSTM."""
+    return arch.family == "LSTM" and arch.model_class_name == "LSTMStatefulRegressor"
+
+
 def _build_cmd(runner: str, arch, target: str, fset: str, with_abs: bool) -> str:
     flag = "--with-abs" if with_abs else "--no-abs"
     return (
@@ -65,7 +73,7 @@ def _build_cmd(runner: str, arch, target: str, fset: str, with_abs: bool) -> str
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="генератор jobs.csv для orchestrator'а")
     p.add_argument("--gpu-only", action="store_true",
-                   help="только NN (LSTM+TCN), пропустить linear batch job")
+                   help="только NN-задачи без Lin; порядок сохраняет совместимость job_id")
     return p.parse_args()
 
 
@@ -105,10 +113,22 @@ def main() -> None:
             "cmd": "PYTHONPATH=. uv run python linear_runner.py --grid-all",
         })
 
-    for arch in LSTM_ARCHS:
-        add(arch, FEATURE_SETS_NN)
-    for arch in TCN_ARCHS:
-        add(arch, FEATURE_SETS_NN)
+    if args.gpu_only:
+        for arch in LSTM_ARCHS:
+            if _is_stateful_lstm(arch):
+                continue
+            add(arch, FEATURE_SETS_NN)
+        for arch in TCN_ARCHS:
+            add(arch, FEATURE_SETS_NN)
+        for arch in LSTM_ARCHS:
+            if not _is_stateful_lstm(arch):
+                continue
+            add(arch, FEATURE_SETS_NN)
+    else:
+        for arch in LSTM_ARCHS:
+            add(arch, FEATURE_SETS_NN)
+        for arch in TCN_ARCHS:
+            add(arch, FEATURE_SETS_NN)
 
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with OUT_PATH.open("w", newline="") as f:
