@@ -24,8 +24,16 @@ OUT_DIR     = RESULTS_DIR / "v03xx_analysis"
 OUT_DIR.mkdir(exist_ok=True)
 
 # Доступные версии с полными данными (есть summary.csv)
-VERSIONS = ["v0301", "v0302", "v0303", "v0304", "v0305", "v0306",
-            "v0307", "v0308", "v0309", "v0310"]
+VERSIONS = [
+    "v0301", "v0302", "v0303", "v0304", "v0305", "v0306",
+    "v0307", "v0308", "v0309", "v0310", "v0311", "v0312",
+    "v0313", "v0314", "v0315", "v0316", "v0317", "v0318",
+    "v0319", "v0320", "v0321", "v0322", "v0323", "v0324",
+    "v0325", "v0326", "v0327", "v0328", "v0329", "v0330",
+    "v0331", "v0332", "v0333", "v0334", "v0335", "v0336",
+    "v0401", "v0402", "v0403", "v0404", "v0405", "v0406",
+    "v0407", "v0408",
+]
 
 DT     = 5.0   # шаг окна, сек
 SIGMA_P   = 5.0
@@ -65,9 +73,12 @@ def collect_summary() -> pd.DataFrame:
     rows = []
     for ver in VERSIONS:
         f = RESULTS_DIR / ver / "summary.csv"
-        if not f.exists():
+        if not f.exists() or f.stat().st_size < 10:
             continue
-        df = pd.read_csv(f)
+        try:
+            df = pd.read_csv(f)
+        except pd.errors.EmptyDataError:
+            continue
         df["version"] = ver
         rows.append(df)
     return pd.concat(rows, ignore_index=True)

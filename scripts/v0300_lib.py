@@ -89,6 +89,7 @@ class ExperimentCfg:
     internal_stride_sec: int
     outer_stride_sec: int = 5
     use_wavelet: bool = False
+    with_abs: bool = False  # True → не исключать абсолютные признаки (EXCLUDE_ABS)
     chunk_size: int = 10
     target: str = "both"
 
@@ -639,7 +640,8 @@ def run_experiment(cfg: ExperimentCfg) -> None:
             df_prep = prepare_data(df_raw, session_params, tgt_name)
             df_tgt = df_prep.dropna(subset=[target_col])
             feat_cols_full = get_feature_cols(df_tgt, fset)
-            feat_cols = [c for c in feat_cols_full if c not in EXCLUDE_ABS]
+            feat_cols = feat_cols_full if cfg.with_abs else \
+                        [c for c in feat_cols_full if c not in EXCLUDE_ABS]
             n_subj = df_tgt["subject_id"].nunique()
             cwt_info = f" (+CWT {cwt.n_features})" if cwt is not None else ""
             print(f"  n_subj={n_subj}, n_features={len(feat_cols)}{cwt_info}")
@@ -652,8 +654,9 @@ def run_experiment(cfg: ExperimentCfg) -> None:
                 print(f"  ❌ {res['error']}")
                 continue
 
+            variant = "with_abs" if cfg.with_abs else "noabs"
             for row in res.get("per_subject", []):
-                all_subj_records.append({"variant": "noabs", "feature_set": fset,
+                all_subj_records.append({"variant": variant, "feature_set": fset,
                                          "target": tgt_name, **row})
             np.save(out_dir / f"ypred_{tgt_name}_{fset_tag}.npy", res["y_pred"])
             np.save(out_dir / f"ytrue_{tgt_name}_{fset_tag}.npy", res["y_true"])
@@ -668,7 +671,7 @@ def run_experiment(cfg: ExperimentCfg) -> None:
                     best_mae = mae_k; best_sigma = sigma
 
             all_records.append({
-                "variant": "noabs", "feature_set": fset, "target": tgt_name,
+                "variant": variant, "feature_set": fset, "target": tgt_name,
                 "n_subjects": n_subj, "n_features": len(feat_cols),
                 "raw_mae_min":    round(res["raw_mae_min"], 4),
                 "kalman_mae_min": round(best_mae, 4),
