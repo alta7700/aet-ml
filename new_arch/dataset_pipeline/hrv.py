@@ -16,7 +16,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from new_arch.dataset_pipeline.common import (
+from dataset_pipeline.common import (
     DEFAULT_DATASET_DIR,
     DEFAULT_HRV_CONTEXT_SEC,
     load_subjects_table,

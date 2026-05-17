@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from new_arch.dataset_pipeline.common import load_subjects_table
-from new_arch.dataset_pipeline.common import load_windows_table
+from dataset_pipeline.common import load_subjects_table
+from dataset_pipeline.common import load_windows_table
 
 
 TIME_TARGET_QUALITIES = {"high", "medium"}

@@ -1,18 +1,15 @@
 """tcn_runner — обучение одной TCN*-архитектуры с LOSO.
 
 Без val-split, фиксированное число эпох, AdamW + CosineAnnealingLR.
-Промежуточные checkpoints каждые checkpoint_every_epochs.
-predictions.parquet строится по финальной модели каждого fold.
+На каждом checkpoint_every_epochs:
+  • state_dict аккумулируется в RAM (один .pt на эпоху со всеми folds);
+  • forward pass на test → строки predictions с колонкой epoch.
 
-Сохраняемые артефакты:
+Артефакты:
   results/{architecture_id}/models.csv
   results/{architecture_id}/{model_id}/history.csv
-  results/{architecture_id}/{model_id}/model_{model_id}_fold-{fold_id}_epoch-{NN}.pt
-  results/{architecture_id}/{model_id}/predictions_{model_id}.parquet
-
-Пример:
-  PYTHONPATH=. uv run python new_arch/tcn_runner.py \
-      --architecture TCN1 --target lt1 --feature-set EMG+NIRS+HRV
+  results/{architecture_id}/{model_id}/model_{model_id}_epoch-{NN}.pt
+  results/{architecture_id}/{model_id}/predictions_{model_id}.parquet  (с epoch)
 """
 
 from __future__ import annotations
@@ -29,17 +26,17 @@ import torch.optim as optim
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import ConcatDataset, DataLoader
 
-from new_arch.architectures import get_architecture
-from new_arch.common_lib import (
+from architectures import get_architecture
+from common_lib import (
     ExperimentMetadata, arch_dir, build_fold_id, model_dir,
-    save_history_csv, save_model_checkpoint, save_models_csv,
+    save_grouped_checkpoint, save_history_csv, save_models_csv,
     save_predictions_parquet,
 )
-from new_arch.dataset_pipeline.common import DEFAULT_DATASET_DIR
-from new_arch.features import get_feature_cols, prepare_data
-from new_arch.models.lstm import StatelessSeqDataset
-from new_arch.models.tcn import PureTCN
-from new_arch.training_utils import get_device, prepare_X_for_fold
+from dataset_pipeline.common import DEFAULT_DATASET_DIR
+from features import get_feature_cols, prepare_data
+from models.lstm import StatelessSeqDataset
+from models.tcn import DwtTCN, PureTCN, WaveNetTCN
+from training_utils import get_device, prepare_X_for_fold
 
 RESULTS_ROOT = Path(__file__).resolve().parent / "results"
 BASE_STEP_SEC = 5
@@ -49,12 +46,25 @@ TARGET_COLS = {
     "lt2": "target_time_to_lt2_center_sec",
 }
 
-# Реестр TCN-моделей по model_class_name.
 _TCN_BUILDERS = {
     "PureTCN": lambda input_size, hp: PureTCN(
         input_size=input_size,
         n_channels=int(hp["n_channels"]),
         kernel_size=int(hp["kernel_size"]),
+        dilations=list(hp["dilations"]),
+        dropout=float(hp["dropout"]),
+    ),
+    "DwtTCN": lambda input_size, hp: DwtTCN(
+        input_size=input_size,
+        n_channels=int(hp["n_channels"]),
+        kernel_size=int(hp["kernel_size"]),
+        dilations=list(hp["dilations"]),
+        dropout=float(hp["dropout"]),
+    ),
+    "WaveNetTCN": lambda input_size, hp: WaveNetTCN(
+        input_size=input_size,
+        residual_ch=int(hp["n_channels"]),
+        skip_ch=int(hp["n_channels"]) * int(hp.get("skip_channels_mult", 2)),
         dilations=list(hp["dilations"]),
         dropout=float(hp["dropout"]),
     ),
@@ -72,7 +82,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-abs", dest="with_abs", action="store_false")
     p.add_argument("--wavelet-mode",
                    choices=["none", "dwt", "cwt", "wavelet_features", "wavelet_cnn"],
-                   default="none")
+                   default=None,
+                   help="по умолчанию берётся forced_wavelet_mode архитектуры; "
+                        "если у арх. forced=None → 'none'")
     p.add_argument("--max-epochs", type=int, default=None)
     p.add_argument("--checkpoint-every", type=int, default=None)
     p.add_argument("--seed", type=int, default=42)
@@ -95,7 +107,6 @@ def _seed_all(seed: int) -> None:
 def _build_train_dataset(df_train: pd.DataFrame, X_tr: np.ndarray, y_tr: np.ndarray,
                         seq_len: int, internal_stride_rows: int,
                         outer_stride_rows: int) -> ConcatDataset | None:
-    """Per-subject склейка StatelessSeqDataset."""
     groups = df_train.groupby("subject_id", sort=False).indices
     parts: list[StatelessSeqDataset] = []
     span = (seq_len - 1) * internal_stride_rows + 1
@@ -114,13 +125,62 @@ def _build_train_dataset(df_train: pd.DataFrame, X_tr: np.ndarray, y_tr: np.ndar
     return ConcatDataset(parts)
 
 
+def _predict_on_test(model: nn.Module, test_ds: StatelessSeqDataset,
+                     batch_size: int, device: str) -> np.ndarray:
+    if len(test_ds) == 0:
+        return np.array([], dtype=np.float32)
+    loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+    model.eval()
+    out: list[np.ndarray] = []
+    with torch.no_grad():
+        for X, _ in loader:
+            pred = model(X.to(device))
+            out.append(pred.cpu().numpy())
+    return np.concatenate(out) if out else np.array([], dtype=np.float32)
+
+
+def _make_test_pred_rows(y_pred: np.ndarray, end_pos: np.ndarray,
+                        test_df: pd.DataFrame, y_te_raw: np.ndarray,
+                        y_sc: StandardScaler, meta: ExperimentMetadata,
+                        fold_id: str, epoch: int, seq_len: int,
+                        int_stride_sec: int) -> pd.DataFrame:
+    if len(y_pred) == 0:
+        return pd.DataFrame()
+    y_pred_real = y_sc.inverse_transform(y_pred.reshape(-1, 1)).ravel()
+    y_true = y_te_raw[end_pos]
+    win_start = test_df["window_start_sec"].astype(float).values
+    sample_start_sec = win_start[end_pos] - (seq_len - 1) * int_stride_sec
+    sample_end_sec = win_start[end_pos] + float(meta.window_size_sec)
+    n = len(y_pred_real)
+    return pd.DataFrame({
+        "model_id": meta.model_id,
+        "fold_id": fold_id,
+        "subject_id": test_df["subject_id"].values[end_pos],
+        "epoch": int(epoch),
+        "window_size_sec": meta.window_size_sec,
+        "sequence_length": meta.sequence_length,
+        "stride_sec": meta.stride_sec,
+        "sample_stride_sec": meta.sample_stride_sec,
+        "sample_index": np.arange(n, dtype=np.int64),
+        "sample_start_sec": sample_start_sec.astype(float),
+        "sample_end_sec": sample_end_sec.astype(float),
+        "y_true": y_true.astype(float),
+        "y_pred": y_pred_real.astype(float),
+    })
+
+
 def _train_one_fold(model: nn.Module, loader: DataLoader,
+                    test_ds: StatelessSeqDataset,
                     *, max_epochs: int, checkpoint_every: int,
                     lr: float, weight_decay: float, device: str,
-                    save_ckpt) -> list[dict]:
-    """LOSO fold: AdamW + CosineAnnealingLR на T_max=max_epochs.
+                    batch_size: int,
+                    fold_id: str, meta: ExperimentMetadata,
+                    test_df: pd.DataFrame, y_te_raw: np.ndarray,
+                    y_sc: StandardScaler, seq_len: int, int_stride_sec: int,
+                    int_stride_rows: int):
+    """AdamW + CosineAnnealingLR(T_max=max_epochs).
 
-    save_ckpt(epoch:int) — колбек сохранения чекпоинта.
+    Возвращает (history_rows, states_by_epoch, pred_frames).
     """
     criterion = nn.MSELoss()
     opt = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -129,11 +189,13 @@ def _train_one_fold(model: nn.Module, loader: DataLoader,
     )
 
     history: list[dict] = []
+    states_by_epoch: dict[int, dict] = {}
+    pred_frames: list[pd.DataFrame] = []
+    end_pos = test_ds.starts + (seq_len - 1) * int_stride_rows
+
     for epoch in range(1, max_epochs + 1):
         model.train()
-        loss_sum = 0.0
-        mae_sum = 0.0
-        n = 0
+        loss_sum = 0.0; mae_sum = 0.0; n = 0
         for X, y in loader:
             X = X.to(device); y = y.to(device)
             opt.zero_grad()
@@ -159,30 +221,20 @@ def _train_one_fold(model: nn.Module, loader: DataLoader,
             "lr": cur_lr,
         })
 
-        if epoch % checkpoint_every == 0 or epoch == max_epochs:
-            save_ckpt(epoch)
+        is_ckpt = epoch % checkpoint_every == 0 or epoch == max_epochs
+        if is_ckpt:
+            states_by_epoch[epoch] = {
+                k: v.detach().to("cpu").clone() for k, v in model.state_dict().items()
+            }
+            y_pred_norm = _predict_on_test(model, test_ds, batch_size, device)
+            df_frame = _make_test_pred_rows(
+                y_pred_norm, end_pos, test_df, y_te_raw, y_sc,
+                meta, fold_id, epoch, seq_len, int_stride_sec,
+            )
+            if len(df_frame) > 0:
+                pred_frames.append(df_frame)
 
-    return history
-
-
-def _predict_fold(model: nn.Module, X_te: np.ndarray, y_te: np.ndarray,
-                  seq_len: int, internal_stride_rows: int,
-                  outer_stride_rows: int, batch_size: int,
-                  device: str) -> tuple[np.ndarray, np.ndarray]:
-    ds = StatelessSeqDataset(X_te, y_te, seq_len,
-                             internal_stride_rows, outer_stride_rows)
-    if len(ds) == 0:
-        return np.array([], dtype=np.float32), np.array([], dtype=np.int64)
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=False)
-    model.eval()
-    out: list[np.ndarray] = []
-    with torch.no_grad():
-        for X, _ in loader:
-            pred = model(X.to(device))
-            out.append(pred.cpu().numpy())
-    y_pred_norm = np.concatenate(out) if out else np.array([], dtype=np.float32)
-    end_pos = ds.starts + (seq_len - 1) * internal_stride_rows
-    return y_pred_norm, end_pos
+    return history, states_by_epoch, pred_frames
 
 
 def _build_tcn_model(arch, input_size: int) -> nn.Module:
@@ -218,10 +270,11 @@ def run(args: argparse.Namespace) -> None:
     checkpoint_every = int(args.checkpoint_every or hp["checkpoint_every_epochs"])
     checkpoint_every = max(1, checkpoint_every)
 
+    wavelet_mode = args.wavelet_mode or arch.forced_wavelet_mode or "none"
     meta = ExperimentMetadata.from_arch(
         arch,
         target=args.target, feature_set=args.feature_set,
-        with_abs=args.with_abs, wavelet_mode=args.wavelet_mode,
+        with_abs=args.with_abs, wavelet_mode=wavelet_mode,
     )
     device = get_device()
     _seed_all(args.seed)
@@ -255,6 +308,7 @@ def run(args: argparse.Namespace) -> None:
     subjects = sorted(df_prep["subject_id"].unique())
     pred_rows: list[pd.DataFrame] = []
     history_rows: list[dict] = []
+    epoch_states: dict[int, dict[str, dict]] = {}
 
     t_total = time.perf_counter()
     for test_s in subjects:
@@ -276,6 +330,7 @@ def run(args: argparse.Namespace) -> None:
         y_te_raw = test_df[target_col].values.astype(np.float32)
         y_sc = StandardScaler()
         y_tr = y_sc.fit_transform(y_tr_raw.reshape(-1, 1)).ravel().astype(np.float32)
+        y_te_norm = y_sc.transform(y_te_raw.reshape(-1, 1)).ravel().astype(np.float32)
 
         train_ds = _build_train_dataset(
             train_df, X_tr, y_tr,
@@ -288,19 +343,27 @@ def run(args: argparse.Namespace) -> None:
             train_ds, batch_size=batch_size, shuffle=True,
             num_workers=args.num_workers, drop_last=False,
         )
+        test_ds = StatelessSeqDataset(
+            X_te, y_te_norm, seq_len, int_stride_rows, out_stride_rows,
+        )
+        if len(test_ds) == 0:
+            print(f"  [skip {fold_id}] недостаточно test-окон")
+            continue
 
         model = _build_tcn_model(arch, input_size=X_tr.shape[1]).to(device)
         n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-        def _save_ckpt(epoch: int, *, _model=model, _meta=meta, _md=md, _fold_id=fold_id):
-            save_model_checkpoint(_model, _md, _meta, _fold_id, epoch=epoch)
-
-        fold_history = _train_one_fold(
-            model, train_loader,
+        fold_history, fold_states, fold_preds = _train_one_fold(
+            model, train_loader, test_ds,
             max_epochs=max_epochs, checkpoint_every=checkpoint_every,
             lr=lr, weight_decay=weight_decay, device=device,
-            save_ckpt=_save_ckpt,
+            batch_size=batch_size,
+            fold_id=fold_id, meta=meta,
+            test_df=test_df, y_te_raw=y_te_raw, y_sc=y_sc,
+            seq_len=seq_len, int_stride_sec=int_stride_sec,
+            int_stride_rows=int_stride_rows,
         )
+
         for row in fold_history:
             history_rows.append({
                 "model_id": meta.model_id,
@@ -308,57 +371,42 @@ def run(args: argparse.Namespace) -> None:
                 "fold_id": fold_id,
                 **row,
             })
+        for ep, state in fold_states.items():
+            epoch_states.setdefault(ep, {})[fold_id] = state
+        pred_rows.extend(fold_preds)
 
-        y_pred_norm, end_pos = _predict_fold(
-            model, X_te, y_te_raw,
-            seq_len, int_stride_rows, out_stride_rows, batch_size, device,
-        )
-        if len(y_pred_norm) == 0:
-            print(f"  [skip {fold_id}] недостаточно test-окон")
-            continue
-        y_pred = y_sc.inverse_transform(y_pred_norm.reshape(-1, 1)).ravel()
-        y_true = y_te_raw[end_pos]
-
-        win_start = test_df["window_start_sec"].astype(float).values
-        sample_start_sec = win_start[end_pos] - (seq_len - 1) * int_stride_sec
-        sample_end_sec = win_start[end_pos] + float(meta.window_size_sec)
-
-        n_pred = len(y_pred)
-        fold_df = pd.DataFrame({
-            "model_id": meta.model_id,
-            "fold_id": fold_id,
-            "subject_id": test_df["subject_id"].values[end_pos],
-            "window_size_sec": meta.window_size_sec,
-            "sequence_length": meta.sequence_length,
-            "stride_sec": meta.stride_sec,
-            "sample_stride_sec": meta.sample_stride_sec,
-            "sample_index": np.arange(n_pred, dtype=np.int64),
-            "sample_start_sec": sample_start_sec.astype(float),
-            "sample_end_sec": sample_end_sec.astype(float),
-            "y_true": y_true.astype(float),
-            "y_pred": y_pred.astype(float),
-        })
-        pred_rows.append(fold_df)
-
-        mae_min = float(np.mean(np.abs(y_true - y_pred))) / 60.0
+        final_df = fold_preds[-1] if fold_preds else None
+        mae_min = (float(np.mean(np.abs(final_df["y_true"] - final_df["y_pred"]))) / 60.0
+                   if final_df is not None else float("nan"))
         elapsed = time.perf_counter() - t0
-        n_ckpts = sum(
-            1 for e in range(1, max_epochs + 1)
-            if e % checkpoint_every == 0 or e == max_epochs
-        )
-        print(f"  fold {fold_id:<22s}  n={n_pred:<4d}  MAE={mae_min:.3f} мин  "
-              f"params={n_params}  ckpts={n_ckpts}  ({elapsed:.1f}s)")
+        print(f"  fold {fold_id:<22s}  n={len(final_df) if final_df is not None else 0:<4d}  "
+              f"MAE_final={mae_min:.3f} мин  params={n_params}  "
+              f"ckpts={len(fold_states)}  ({elapsed:.1f}s)")
 
     save_history_csv(history_rows, md, meta)
-    preds = pd.concat(pred_rows, ignore_index=True)
-    save_predictions_parquet(preds, md, meta)
+    if pred_rows:
+        preds = pd.concat(pred_rows, ignore_index=True)
+        save_predictions_parquet(preds, md, meta)
+    else:
+        preds = pd.DataFrame()
 
-    overall_mae = float(np.mean(np.abs(preds["y_true"] - preds["y_pred"]))) / 60.0
-    print(f"\n  Всего {len(subjects)} folds, "
-          f"{time.perf_counter() - t_total:.1f}s; "
-          f"overall MAE={overall_mae:.3f} мин")
-    print(f"  → {md}/history.csv  ({len(history_rows)} строк)")
-    print(f"  → {md}/predictions_{meta.model_id}.parquet  ({len(preds)} строк)")
+    for epoch in sorted(epoch_states.keys()):
+        save_grouped_checkpoint(epoch_states[epoch], md, meta, epoch=epoch)
+
+    if not preds.empty:
+        per_epoch = preds.groupby("epoch").apply(
+            lambda g: float(np.mean(np.abs(g["y_true"] - g["y_pred"]))) / 60.0
+        )
+        best_epoch = int(per_epoch.idxmin())
+        print(f"\n  Всего {len(subjects)} folds, "
+              f"{time.perf_counter() - t_total:.1f}s")
+        print(f"  MAE по эпохам (мин):")
+        for ep, mae in per_epoch.items():
+            mark = "  ← best" if ep == best_epoch else ""
+            print(f"    epoch={ep:>3d}  MAE={mae:.3f}{mark}")
+        print(f"  → {md}/history.csv  ({len(history_rows)} строк)")
+        print(f"  → {md}/predictions_{meta.model_id}.parquet  ({len(preds)} строк)")
+        print(f"  → {md}/model_{meta.model_id}_epoch-*.pt  ({len(epoch_states)} файлов)")
 
 
 if __name__ == "__main__":

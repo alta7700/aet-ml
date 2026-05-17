@@ -15,7 +15,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import ElasticNet, HuberRegressor, Ridge
 from sklearn.svm import SVR
 
-from new_arch.common_lib import ArchitectureSpec
+from common_lib import ArchitectureSpec
 
 
 # ─── Linear / classical зоопарк (зеркало scripts/v0011_modality_ablation._build_zoo) ──
@@ -78,48 +78,116 @@ LINEAR_ARCHS: list[ArchitectureSpec] = _lin_specs()
 
 # ─── LSTM семейство ─────────────────────────────────────────────────────────
 
-# База: окно 30 сек, шаг 5 сек.
 _BASE_STEP_SEC = 5
 
+_LSTM_COMMON_HP = {
+    "hidden_size": 64,
+    "num_layers": 2,
+    "dropout": 0.3,
+    "lr": 1e-3,
+    "weight_decay": 1e-5,
+    "batch_size": 64,
+    "max_epochs": 80,
+    "checkpoint_every_epochs": 4,
+}
 
-def _lstm_specs() -> list[ArchitectureSpec]:
-    """LSTM-архитектуры (stateless, без val-split, без CWT в LSTM1).
+# Stateful-only гиперпараметры.
+_STATEFUL_HP = {**_LSTM_COMMON_HP, "chunk_size": 10}
 
-    LSTM1 = stateless 6×30 (3 мин контекста, internal_stride=30 сек).
-    """
-    specs: list[ArchitectureSpec] = []
 
-    common_hp = {
-        "hidden_size": 64,
-        "num_layers": 2,
-        "dropout": 0.3,
-        "lr": 1e-3,
-        "weight_decay": 1e-5,
-        "batch_size": 64,
-        "max_epochs": 80,
-        "checkpoint_every_epochs": 4,   # 5% от max_epochs=80
-    }
-
-    # LSTM1: seq_len=6, internal_stride=30 сек, outer_stride=5 сек, без CWT.
-    specs.append(ArchitectureSpec(
-        architecture_id="LSTM1",
+def _lstm_stateless(arch_id: str, internal_stride_sec: int,
+                    wavelet_mode: str) -> ArchitectureSpec:
+    """Stateless LSTM, seq_len=6, выбираемый internal_stride, outer=5."""
+    wav_tag = "+CWT" if wavelet_mode == "cwt" else ""
+    return ArchitectureSpec(
+        architecture_id=arch_id,
         family="LSTM",
-        architecture_name="Stateless LSTM, 6 × 30 сек, outer-шаг 5 сек",
-        short_architecture_name="SLSTM 6x30 s5",
+        architecture_name=f"Stateless LSTM, 6 × {internal_stride_sec} сек{wav_tag}",
+        short_architecture_name=f"SLSTM 6x{internal_stride_sec}{wav_tag}",
         model_class_name="LSTMRegressor",
         window_size_sec=30,
         sequence_length=6,
-        stride_sec=30,         # internal stride (между подокнами в одном sample)
-        sample_stride_sec=5,   # outer stride (между sample'ами)
-        forced_wavelet_mode=None,
+        stride_sec=internal_stride_sec,
+        sample_stride_sec=5,
+        forced_wavelet_mode=wavelet_mode,
         hyperparams={
             "seq_len": 6,
-            "internal_stride_sec": 30,
+            "internal_stride_sec": internal_stride_sec,
             "outer_stride_sec": 5,
-            **common_hp,
+            **_LSTM_COMMON_HP,
         },
-    ))
+    )
 
+
+def _lstm_attention(arch_id: str, internal_stride_sec: int,
+                    wavelet_mode: str) -> ArchitectureSpec:
+    """Attention LSTM, seq_len=12, выбираемый internal_stride, outer=5."""
+    wav_tag = "+CWT" if wavelet_mode == "cwt" else ""
+    return ArchitectureSpec(
+        architecture_id=arch_id,
+        family="LSTM",
+        architecture_name=f"Attention LSTM, 12 × {internal_stride_sec} сек{wav_tag}",
+        short_architecture_name=f"AttnLSTM 12x{internal_stride_sec}{wav_tag}",
+        model_class_name="AttentionLSTMRegressor",
+        window_size_sec=30,
+        sequence_length=12,
+        stride_sec=internal_stride_sec,
+        sample_stride_sec=5,
+        forced_wavelet_mode=wavelet_mode,
+        hyperparams={
+            "seq_len": 12,
+            "internal_stride_sec": internal_stride_sec,
+            "outer_stride_sec": 5,
+            **_LSTM_COMMON_HP,
+        },
+    )
+
+
+def _lstm_stateful(arch_id: str, internal_stride_sec: int,
+                   wavelet_mode: str) -> ArchitectureSpec:
+    """Stateful LSTM, целая запись, internal_stride=шаг субсэмплирования.
+
+    sequence_length=null концептуально (full recording),
+    в schema используем 0 для отличия от stateless/attention.
+    """
+    wav_tag = "+CWT" if wavelet_mode == "cwt" else ""
+    return ArchitectureSpec(
+        architecture_id=arch_id,
+        family="LSTM",
+        architecture_name=f"Stateful LSTM, full record, шаг {internal_stride_sec} сек{wav_tag}",
+        short_architecture_name=f"StLSTM full s{internal_stride_sec}{wav_tag}",
+        model_class_name="LSTMStatefulRegressor",
+        window_size_sec=30,
+        sequence_length=0,   # 0 ≡ "full recording", не None (чтобы не было NaN в parquet)
+        stride_sec=internal_stride_sec,
+        sample_stride_sec=internal_stride_sec,
+        forced_wavelet_mode=wavelet_mode,
+        hyperparams={
+            "internal_stride_sec": internal_stride_sec,
+            **_STATEFUL_HP,
+        },
+    )
+
+
+def _lstm_specs() -> list[ArchitectureSpec]:
+    """Все 16 LSTM-архитектур."""
+    specs: list[ArchitectureSpec] = []
+    # LSTM1..LSTM6: stateless 6×{30,15,5} × {none, cwt}
+    n = 0
+    for stride in [30, 15, 5]:
+        for wav in ["none", "cwt"]:
+            n += 1
+            specs.append(_lstm_stateless(f"LSTM{n}", stride, wav))
+    # LSTM7..LSTM12: stateful full × {30,15,5} × {none, cwt}
+    for stride in [30, 15, 5]:
+        for wav in ["none", "cwt"]:
+            n += 1
+            specs.append(_lstm_stateful(f"LSTM{n}", stride, wav))
+    # LSTM13..LSTM16: attention 12×{30,15} × {none, cwt}
+    for stride in [30, 15]:
+        for wav in ["none", "cwt"]:
+            n += 1
+            specs.append(_lstm_attention(f"LSTM{n}", stride, wav))
     return specs
 
 
@@ -129,12 +197,10 @@ LSTM_ARCHS: list[ArchitectureSpec] = _lstm_specs()
 # ─── TCN семейство ──────────────────────────────────────────────────────────
 
 def _tcn_specs() -> list[ArchitectureSpec]:
-    """TCN-архитектуры (stateless, без val-split).
+    """TCN-архитектуры (causal, без val-split).
 
-    TCN1 = PureTCN, seq_len=30 строк (150 сек), dilations=[1,2,4,8], RF=31.
+    Все свёртки причинные (pad слева на (k-1)*d) — нет утечки "будущего" внутри окна.
     """
-    specs: list[ArchitectureSpec] = []
-
     common_hp = {
         "n_channels": 32,
         "kernel_size": 3,
@@ -143,27 +209,93 @@ def _tcn_specs() -> list[ArchitectureSpec]:
         "weight_decay": 1e-3,
         "batch_size": 64,
         "max_epochs": 80,
-        "checkpoint_every_epochs": 4,   # 5% от max_epochs=80
+        "checkpoint_every_epochs": 4,
     }
+    specs: list[ArchitectureSpec] = []
 
-    # TCN1: pure dilated TCN.
+    # TCN1: pure dilated TCN, seq=30 строк (150 сек), RF=31.
     specs.append(ArchitectureSpec(
         architecture_id="TCN1",
         family="TCN",
-        architecture_name="Pure dilated TCN, seq=30 строк (150 сек), RF=31",
+        architecture_name="Causal PureTCN, seq=30 строк (150 сек), RF=31",
         short_architecture_name="PureTCN 30",
         model_class_name="PureTCN",
         window_size_sec=30,
         sequence_length=30,
-        stride_sec=5,          # internal stride = 1 строка (5 сек)
-        sample_stride_sec=5,   # outer stride = 1 строка (5 сек)
-        forced_wavelet_mode=None,
+        stride_sec=5,
+        sample_stride_sec=5,
+        forced_wavelet_mode="none",
         hyperparams={
             "seq_len": 30,
             "internal_stride_sec": 5,
             "outer_stride_sec": 5,
             "dilations": [1, 2, 4, 8],
             **common_hp,
+        },
+    ))
+
+    # TCN2: medium — seq=60 строк (300 сек), dilations=[1,2,4,8,16], RF=63.
+    specs.append(ArchitectureSpec(
+        architecture_id="TCN2",
+        family="TCN",
+        architecture_name="Causal MediumTCN, seq=60 строк (300 сек), RF=63",
+        short_architecture_name="MediumTCN 60",
+        model_class_name="PureTCN",
+        window_size_sec=30,
+        sequence_length=60,
+        stride_sec=5,
+        sample_stride_sec=5,
+        forced_wavelet_mode="none",
+        hyperparams={
+            "seq_len": 60,
+            "internal_stride_sec": 5,
+            "outer_stride_sec": 5,
+            "dilations": [1, 2, 4, 8, 16],
+            **common_hp,
+        },
+    ))
+
+    # TCN3: DWT-TCN — Haar DWT → 2 causal TCN-ветви, dilations=[1,2,4].
+    specs.append(ArchitectureSpec(
+        architecture_id="TCN3",
+        family="TCN",
+        architecture_name="Causal DWT-TCN, seq=30 (Haar DWT → cA/cD ветви)",
+        short_architecture_name="DwtTCN 30",
+        model_class_name="DwtTCN",
+        window_size_sec=30,
+        sequence_length=30,
+        stride_sec=5,
+        sample_stride_sec=5,
+        forced_wavelet_mode="dwt",
+        hyperparams={
+            "seq_len": 30,
+            "internal_stride_sec": 5,
+            "outer_stride_sec": 5,
+            "dilations": [1, 2, 4],
+            **common_hp,
+        },
+    ))
+
+    # TCN4: WaveNet-style TCN — gated activation, kernel=2, dilations=[1,2,4,8,16].
+    specs.append(ArchitectureSpec(
+        architecture_id="TCN4",
+        family="TCN",
+        architecture_name="Causal WaveNet-TCN, seq=30, gated activation",
+        short_architecture_name="WaveNetTCN 30",
+        model_class_name="WaveNetTCN",
+        window_size_sec=30,
+        sequence_length=30,
+        stride_sec=5,
+        sample_stride_sec=5,
+        forced_wavelet_mode="none",
+        hyperparams={
+            "seq_len": 30,
+            "internal_stride_sec": 5,
+            "outer_stride_sec": 5,
+            "kernel_size": 2,
+            "dilations": [1, 2, 4, 8, 16],
+            "skip_channels_mult": 2,
+            **{k: v for k, v in common_hp.items() if k != "kernel_size"},
         },
     ))
 

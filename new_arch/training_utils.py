@@ -18,7 +18,7 @@ import torch
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 
-from new_arch.dataset_pipeline.common import DEFAULT_DATASET_DIR
+from dataset_pipeline.common import DEFAULT_DATASET_DIR
 
 CWT_CACHE_PATH = DEFAULT_DATASET_DIR / "cwt_cache.npz"
 

@@ -20,13 +20,13 @@ import numpy as np
 import pandas as pd
 import pywt
 
-from new_arch.dataset_pipeline.common import (
+from dataset_pipeline.common import (
     DEFAULT_DATASET_DIR,
     load_subjects_table,
     load_windows_table,
     save_parquet,
 )
-from new_arch.dataset_pipeline.hrv import compute_hrv_baseline
+from dataset_pipeline.hrv import compute_hrv_baseline
 from methods.pedal_cycles import (
     DEFAULT_CALIBRATION_MARGIN_SEC,
     DEFAULT_CALIBRATION_TAIL_SEC,

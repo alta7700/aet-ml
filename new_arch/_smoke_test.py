@@ -1,6 +1,6 @@
 """Smoke-тесты для new_arch/common_lib.py.
 
-Запуск: PYTHONPATH=. uv run python new_arch/_smoke_test.py
+Запуск: PYTHONPATH=. uv run python _smoke_test.py
 
 Покрытие:
   • детерминизм build_model_id;
@@ -22,11 +22,13 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 
-from new_arch.common_lib import (
+from common_lib import (
     ArchitectureSpec, ExperimentMetadata,
     build_model_id, build_fold_id,
     build_predictions_filename, build_checkpoint_filename,
+    build_grouped_checkpoint_filename,
     save_models_csv, save_model_checkpoint, save_predictions_parquet,
+    save_grouped_checkpoint,
     validate_predictions_dataframe,
     PREDICTIONS_REQUIRED_COLUMNS,
 )
@@ -57,11 +59,13 @@ def _make_meta(arch=None, **overrides) -> ExperimentMetadata:
     return ExperimentMetadata.from_arch(arch, **cfg)
 
 
-def _good_predictions_df(meta: ExperimentMetadata, n: int = 5) -> pd.DataFrame:
+def _good_predictions_df(meta: ExperimentMetadata, n: int = 5,
+                         epoch: int = 0) -> pd.DataFrame:
     return pd.DataFrame({
         "model_id": [meta.model_id] * n,
         "fold_id": ["loso_subject_01"] * n,
         "subject_id": ["S001"] * n,
+        "epoch": [int(epoch)] * n,
         "window_size_sec": [meta.window_size_sec] * n,
         "sequence_length": [meta.sequence_length] * n,
         "stride_sec": [meta.stride_sec] * n,
@@ -127,6 +131,29 @@ def test_validate_nan_critical():
         print(f"OK: NaN в критической колонке → ValueError")
         return
     raise AssertionError("ожидался ValueError")
+
+
+def test_save_grouped_checkpoint():
+    try:
+        import torch
+        import torch.nn as nn
+    except ImportError:
+        print("SKIP: torch недоступен")
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        meta = _make_meta()
+        md = root / meta.architecture_id / meta.model_id
+        states = {
+            "loso_subject_S001": nn.Linear(3, 1).state_dict(),
+            "loso_subject_S002": nn.Linear(3, 1).state_dict(),
+        }
+        path = save_grouped_checkpoint(states, md, meta, epoch=8)
+        assert path.name == f"model_{meta.model_id}_epoch-008.pt"
+        loaded = torch.load(path, weights_only=True, map_location="cpu")
+        assert set(loaded.keys()) == set(states.keys())
+        assert "weight" in loaded["loso_subject_S001"]
+        print("OK: save_grouped_checkpoint → один .pt с dict[fold_id]→state_dict")
 
 
 def test_save_models_csv_upsert():
@@ -232,6 +259,7 @@ def main() -> None:
     test_validate_missing()
     test_validate_extra_warning()
     test_validate_nan_critical()
+    test_save_grouped_checkpoint()
     test_save_models_csv_upsert()
     test_forced_wavelet_mode()
     test_invalid_wavelet_mode()

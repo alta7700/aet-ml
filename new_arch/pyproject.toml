@@ -1,0 +1,27 @@
+[project]
+name = "new-arch"
+version = "0.1.0"
+description = "Унифицированный training pipeline для регрессии time_to_lt (LSTM/TCN/Linear)."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyarrow>=15.0",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+    "scipy>=1.13",
+    "matplotlib>=3.8",
+    "h5py>=3.10",
+    "pywavelets>=1.5",
+    "nvidia-ml-py>=12.0",
+]
+
+# Torch — опциональный. Без него работает только linear_runner.
+# Установка: uv sync --extra torch
+# На сервере с CUDA 13 PyPI-wheel совместим (PyTorch >= 2.7 поддерживает cuXXX backward).
+# На macOS — тот же wheel с MPS-бэкендом.
+[project.optional-dependencies]
+torch = ["torch>=2.7"]
+
+[tool.uv]
+package = false

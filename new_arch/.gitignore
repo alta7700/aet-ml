@@ -1,0 +1,30 @@
+# Окружение
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Результаты экспериментов — большие, генерируются заново раннерами
+/results/*/*/model_*.joblib
+/results/*/*/model_*.pt
+
+# Датасет — большие parquet/npz, генерируются dataset_pipeline'ом
+dataset/
+
+# Orchestrator runtime — состояние и логи
+orchestrator/process.csv
+orchestrator/process.csv.tmp
+orchestrator/*.lock
+orchestrator/logs/
+
+# Atomic write артефакты (могут остаться при крашe)
+*.csv.tmp
+*.csv.lock
+*.parquet.tmp
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

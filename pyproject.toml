@@ -19,4 +19,5 @@ dependencies = [
     "tabulate>=0.10.0",
     "torch>=2.0.0",
     "pytorch-lightning>=2.0.0",
+    "nvidia-ml-py>=13.595.45",
 ]

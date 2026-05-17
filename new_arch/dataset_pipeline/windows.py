@@ -7,14 +7,14 @@ from pathlib import Path
 import h5py
 import pandas as pd
 
-from new_arch.dataset_pipeline.common import DEFAULT_WINDOW_DURATION_SEC
-from new_arch.dataset_pipeline.common import DEFAULT_WINDOW_STEP_SEC
-from new_arch.dataset_pipeline.common import build_window_starts
-from new_arch.dataset_pipeline.common import build_work_stage_intervals
-from new_arch.dataset_pipeline.common import compute_mode_power_for_window
-from new_arch.dataset_pipeline.common import find_stage_for_time
-from new_arch.dataset_pipeline.common import load_channel_relative
-from new_arch.dataset_pipeline.common import load_subjects_table
+from dataset_pipeline.common import DEFAULT_WINDOW_DURATION_SEC
+from dataset_pipeline.common import DEFAULT_WINDOW_STEP_SEC
+from dataset_pipeline.common import build_window_starts
+from dataset_pipeline.common import build_work_stage_intervals
+from dataset_pipeline.common import compute_mode_power_for_window
+from dataset_pipeline.common import find_stage_for_time
+from dataset_pipeline.common import load_channel_relative
+from dataset_pipeline.common import load_subjects_table
 
 
 def build_windows_for_subject(

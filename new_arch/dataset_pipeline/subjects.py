@@ -7,12 +7,12 @@ from pathlib import Path
 import h5py
 import pandas as pd
 
-from new_arch.dataset_pipeline.common import LT2_SUBJECT_FIELDS
-from new_arch.dataset_pipeline.common import SUMMARY_FIELDS
-from new_arch.dataset_pipeline.common import SubjectFile
-from new_arch.dataset_pipeline.common import list_subject_files
-from new_arch.dataset_pipeline.common import read_optional_attr
-from new_arch.dataset_pipeline.common import read_required_attr
+from dataset_pipeline.common import LT2_SUBJECT_FIELDS
+from dataset_pipeline.common import SUMMARY_FIELDS
+from dataset_pipeline.common import SubjectFile
+from dataset_pipeline.common import list_subject_files
+from dataset_pipeline.common import read_optional_attr
+from dataset_pipeline.common import read_required_attr
 
 SUMMARY_NUMERIC_FIELDS = {
     "age",
