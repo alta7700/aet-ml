@@ -5,30 +5,30 @@
 \toprule
 comparison_kind & group_key & metric & condition_a & condition_b & n_subjects & mean_a & mean_b & delta_mean & wilcoxon_pvalue & pvalue_adj & reject_at_alpha & cohens_d & cliffs_delta \\
 \midrule
-attention_vs_plain & target=lt1|feature_set=EMG|with_abs=False & abs_lt_err_median_sec & attention & plain & 18 & 220.215 & 211.003 & 9.212 & 0.304 & 0.608 & False & 0.249 & 0.080 \\
-attention_vs_plain & target=lt1|feature_set=EMG|with_abs=True & abs_lt_err_median_sec & attention & plain & 18 & 220.215 & 206.470 & 13.745 & 0.060 & 0.239 & False & 0.400 & 0.068 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=False & abs_lt_err_median_sec & attention & plain & 18 & 183.438 & 186.177 & -2.739 & 1.000 & 1.000 & False & -0.060 & 0.012 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=True & abs_lt_err_median_sec & attention & plain & 18 & 179.399 & 192.654 & -13.255 & 0.074 & 0.239 & False & -0.478 & -0.099 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=False & abs_lt_err_median_sec & attention & plain & 18 & 161.803 & 159.795 & 2.008 & 0.766 & 0.971 & False & 0.044 & 0.037 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=True & abs_lt_err_median_sec & attention & plain & 18 & 168.434 & 176.183 & -7.749 & 0.284 & 0.608 & False & -0.239 & -0.019 \\
-attention_vs_plain & target=lt2|feature_set=EMG|with_abs=False & abs_lt_err_median_sec & attention & plain & 17 & 171.624 & 173.572 & -1.948 & 0.890 & 0.971 & False & -0.046 & -0.052 \\
-attention_vs_plain & target=lt2|feature_set=EMG|with_abs=True & abs_lt_err_median_sec & attention & plain & 17 & 171.624 & 174.783 & -3.159 & 0.712 & 0.971 & False & -0.086 & -0.066 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=False & abs_lt_err_median_sec & attention & plain & 17 & 179.281 & 170.635 & 8.647 & 0.890 & 0.971 & False & 0.158 & -0.059 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=True & abs_lt_err_median_sec & attention & plain & 17 & 204.611 & 188.923 & 15.687 & 0.644 & 0.971 & False & 0.241 & -0.038 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=False & abs_lt_err_median_sec & attention & plain & 17 & 165.337 & 138.956 & 26.381 & 0.080 & 0.239 & False & 0.524 & 0.176 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=True & abs_lt_err_median_sec & attention & plain & 17 & 145.590 & 127.249 & 18.341 & 0.080 & 0.239 & False & 0.462 & 0.121 \\
-attention_vs_plain & target=lt1|feature_set=EMG|with_abs=False & mae & attention & plain & 18 & 219.264 & 224.180 & -4.915 & 0.417 & 0.784 & False & -0.138 & 0.000 \\
-attention_vs_plain & target=lt1|feature_set=EMG|with_abs=True & mae & attention & plain & 18 & 219.264 & 219.422 & -0.158 & 0.832 & 0.832 & False & -0.005 & 0.019 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=False & mae & attention & plain & 18 & 197.438 & 207.821 & -10.383 & 0.523 & 0.784 & False & -0.244 & -0.025 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=True & mae & attention & plain & 18 & 193.376 & 214.644 & -21.269 & 0.010 & 0.109 & False & -0.791 & -0.117 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=False & mae & attention & plain & 18 & 173.810 & 184.667 & -10.857 & 0.393 & 0.784 & False & -0.274 & -0.012 \\
-attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=True & mae & attention & plain & 18 & 177.234 & 195.780 & -18.546 & 0.018 & 0.109 & False & -0.586 & -0.099 \\
-attention_vs_plain & target=lt2|feature_set=EMG|with_abs=False & mae & attention & plain & 17 & 183.354 & 201.930 & -18.577 & 0.080 & 0.239 & False & -0.466 & -0.183 \\
-attention_vs_plain & target=lt2|feature_set=EMG|with_abs=True & mae & attention & plain & 17 & 183.354 & 204.614 & -21.261 & 0.031 & 0.122 & False & -0.590 & -0.197 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=False & mae & attention & plain & 17 & 190.635 & 193.606 & -2.971 & 0.487 & 0.784 & False & -0.065 & -0.087 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=True & mae & attention & plain & 17 & 209.369 & 202.766 & 6.603 & 0.818 & 0.832 & False & 0.108 & -0.059 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=False & mae & attention & plain & 17 & 173.835 & 166.260 & 7.574 & 0.712 & 0.832 & False & 0.154 & 0.045 \\
-attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=True & mae & attention & plain & 17 & 157.307 & 149.529 & 7.777 & 0.712 & 0.832 & False & 0.253 & 0.003 \\
+attention_vs_plain & target=lt1|feature_set=EMG|with_abs=False & abs_lt_err_median_sec & attention & plain & 18 & 220.346 & 210.294 & 10.052 & 0.181 & 0.436 & False & 0.258 & 0.068 \\
+attention_vs_plain & target=lt1|feature_set=EMG|with_abs=True & abs_lt_err_median_sec & attention & plain & 18 & 220.346 & 205.865 & 14.481 & 0.074 & 0.436 & False & 0.366 & 0.099 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=False & abs_lt_err_median_sec & attention & plain & 18 & 180.970 & 180.868 & 0.102 & 0.799 & 0.871 & False & 0.003 & 0.006 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=True & abs_lt_err_median_sec & attention & plain & 18 & 184.031 & 193.591 & -9.560 & 0.181 & 0.436 & False & -0.350 & -0.068 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=False & abs_lt_err_median_sec & attention & plain & 18 & 166.079 & 160.085 & 5.994 & 0.347 & 0.594 & False & 0.144 & 0.074 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=True & abs_lt_err_median_sec & attention & plain & 18 & 169.681 & 175.872 & -6.191 & 0.495 & 0.660 & False & -0.204 & -0.043 \\
+attention_vs_plain & target=lt2|feature_set=EMG|with_abs=False & abs_lt_err_median_sec & attention & plain & 17 & 168.495 & 174.323 & -5.828 & 0.306 & 0.594 & False & -0.152 & -0.080 \\
+attention_vs_plain & target=lt2|feature_set=EMG|with_abs=True & abs_lt_err_median_sec & attention & plain & 17 & 168.495 & 172.366 & -3.871 & 0.579 & 0.695 & False & -0.100 & -0.093 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=False & abs_lt_err_median_sec & attention & plain & 17 & 179.369 & 171.446 & 7.922 & 1.000 & 1.000 & False & 0.154 & -0.087 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=True & abs_lt_err_median_sec & attention & plain & 17 & 208.203 & 184.144 & 24.059 & 0.431 & 0.646 & False & 0.325 & 0.010 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=False & abs_lt_err_median_sec & attention & plain & 17 & 162.224 & 139.510 & 22.714 & 0.145 & 0.436 & False & 0.404 & 0.114 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=True & abs_lt_err_median_sec & attention & plain & 17 & 147.143 & 127.429 & 19.715 & 0.057 & 0.436 & False & 0.526 & 0.170 \\
+attention_vs_plain & target=lt1|feature_set=EMG|with_abs=False & mae & attention & plain & 18 & 218.064 & 224.614 & -6.550 & 0.284 & 0.486 & False & -0.167 & -0.025 \\
+attention_vs_plain & target=lt1|feature_set=EMG|with_abs=True & mae & attention & plain & 18 & 218.064 & 219.554 & -1.490 & 0.832 & 0.998 & False & -0.037 & 0.006 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=False & mae & attention & plain & 18 & 195.578 & 205.556 & -9.978 & 0.212 & 0.424 & False & -0.316 & -0.068 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS|with_abs=True & mae & attention & plain & 18 & 194.366 & 215.530 & -21.164 & 0.016 & 0.096 & False & -0.718 & -0.142 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=False & mae & attention & plain & 18 & 177.828 & 187.959 & -10.132 & 0.212 & 0.424 & False & -0.319 & -0.037 \\
+attention_vs_plain & target=lt1|feature_set=EMG+NIRS+HRV|with_abs=True & mae & attention & plain & 18 & 179.151 & 196.466 & -17.315 & 0.014 & 0.096 & False & -0.645 & -0.117 \\
+attention_vs_plain & target=lt2|feature_set=EMG|with_abs=False & mae & attention & plain & 17 & 184.631 & 203.588 & -18.956 & 0.040 & 0.119 & False & -0.476 & -0.163 \\
+attention_vs_plain & target=lt2|feature_set=EMG|with_abs=True & mae & attention & plain & 17 & 184.631 & 205.510 & -20.878 & 0.040 & 0.119 & False & -0.531 & -0.176 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=False & mae & attention & plain & 17 & 190.846 & 197.773 & -6.928 & 0.353 & 0.529 & False & -0.165 & -0.107 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS|with_abs=True & mae & attention & plain & 17 & 206.982 & 202.471 & 4.511 & 0.459 & 0.611 & False & 0.068 & -0.066 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=False & mae & attention & plain & 17 & 173.480 & 169.349 & 4.130 & 1.000 & 1.000 & False & 0.080 & 0.024 \\
+attention_vs_plain & target=lt2|feature_set=EMG+NIRS+HRV|with_abs=True & mae & attention & plain & 17 & 156.229 & 151.339 & 4.890 & 0.963 & 1.000 & False & 0.149 & 0.010 \\
 \bottomrule
 \end{tabular}
 \end{table}

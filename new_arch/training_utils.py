@@ -9,6 +9,7 @@ CwtCache используется только для архитектур с wa
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -24,7 +25,19 @@ CWT_CACHE_PATH = DEFAULT_DATASET_DIR / "cwt_cache.npz"
 
 
 def get_device() -> str:
-    """CUDA → MPS → CPU."""
+    """Возвращает устройство вычислений.
+
+    Если задан `NEW_ARCH_DEVICE`, он имеет приоритет. Допустимые значения:
+    `cuda`, `mps`, `cpu`, `auto`.
+    """
+    forced = os.getenv("NEW_ARCH_DEVICE", "").strip().lower()
+    if forced in {"cuda", "mps", "cpu"}:
+        return forced
+    if forced and forced != "auto":
+        raise SystemExit(
+            f"Неизвестное значение NEW_ARCH_DEVICE={forced!r}. "
+            "Допустимо: cuda, mps, cpu, auto"
+        )
     if torch.cuda.is_available():
         return "cuda"
     if torch.backends.mps.is_available():

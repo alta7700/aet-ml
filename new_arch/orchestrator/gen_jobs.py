@@ -17,6 +17,7 @@
   --families Lin ...  ограничить генерацию выбранными семействами. Допустимые
                      значения: Lin, LSTM, TCN. Можно передать несколько
                      значений через пробел или через запятую.
+  --tcn-max-epochs N  переопределить max_epochs только для TCN-архитектур.
 
 Выход: orchestrator/jobs.csv.
   job_id, runner, architecture_id, target, feature_set, with_abs, wavelet_mode, cmd
@@ -73,6 +74,13 @@ def _build_cmd(runner: str, arch, target: str, fset: str, with_abs: bool) -> str
     )
 
 
+def _tcn_epochs_arg(arch, tcn_max_epochs: int | None) -> str:
+    """Возвращает CLI-аргумент для TCN-эпох, если он нужен."""
+    if arch.family != "TCN" or tcn_max_epochs is None:
+        return ""
+    return f" --max-epochs {tcn_max_epochs}"
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="генератор jobs.csv для orchestrator'а")
     p.add_argument("--gpu-only", action="store_true",
@@ -82,6 +90,12 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         default=None,
         help="какие семейства генерировать: Lin, LSTM, TCN; можно через пробел или запятую",
+    )
+    p.add_argument(
+        "--tcn-max-epochs",
+        type=int,
+        default=None,
+        help="сколько эпох запускать только для TCN-архитектур",
     )
     return p.parse_args()
 
@@ -121,7 +135,8 @@ def main() -> None:
                 "feature_set": fset,
                 "with_abs": str(with_abs).lower(),
                 "wavelet_mode": arch.forced_wavelet_mode or "none",
-                "cmd": _build_cmd(runner, arch, target, fset, with_abs),
+                "cmd": _build_cmd(runner, arch, target, fset, with_abs)
+                       + _tcn_epochs_arg(arch, args.tcn_max_epochs),
             })
 
     if not args.gpu_only:

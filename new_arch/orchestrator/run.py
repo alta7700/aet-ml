@@ -7,7 +7,9 @@
   • Число одновременно running job'ов < --max-running.
 Если хотя бы один порог сработал — новые задачи не стартуют.
 
-Работает только на CUDA-машине (через nvidia-ml-py / NVML).
+На CUDA-машине использует NVML для контроля GPU.
+В CPU-only режиме может работать без NVML и запускать задачи с
+`NEW_ARCH_DEVICE=cpu` в окружении дочерних процессов.
 
 Запущенные процессы НЕ держатся orchestrator'ом — `start_new_session=True`
 переводит каждый child в свою process group. Если orchestrator убит/перезапущен,
@@ -36,6 +38,7 @@ import argparse
 import csv
 import datetime as dt
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -47,11 +50,8 @@ from typing import Optional
 
 try:
     import pynvml
-except ImportError as e:
-    raise SystemExit(
-        "nvidia-ml-py (pynvml) не установлен. "
-        "Установить: uv add nvidia-ml-py"
-    ) from e
+except ImportError:
+    pynvml = None
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -100,6 +100,8 @@ class Job:
 
 class GpuMonitor:
     def __init__(self, gpu_index: int = 0):
+        if pynvml is None:
+            raise RuntimeError("NVML недоступен")
         pynvml.nvmlInit()
         self.handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
         self.name = pynvml.nvmlDeviceGetName(self.handle)
@@ -120,6 +122,31 @@ def host_mem_used_pct() -> int:
     Используем MemAvailable, потому что она лучше отражает реальный запас памяти
     под новые процессы, чем просто поле MemFree.
     """
+    if sys.platform == "darwin":
+        total_bytes = int(subprocess.check_output(["sysctl", "-n", "hw.memsize"], text=True).strip())
+        vm = subprocess.check_output(["vm_stat"], text=True)
+        m = re.search(r"page size of (\d+) bytes", vm)
+        page_size = int(m.group(1)) if m else 4096
+        stats: dict[str, int] = {}
+        for line in vm.splitlines():
+            if ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            value = value.strip().rstrip(".")
+            if value.endswith(" pages"):
+                value = value[:-6]
+            if value.endswith(" page"):
+                value = value[:-5]
+            try:
+                stats[key.strip()] = int(value.replace(",", ""))
+            except ValueError:
+                continue
+        free = stats.get("Pages free", 0)
+        speculative = stats.get("Pages speculative", 0)
+        inactive = stats.get("Pages inactive", 0)
+        available = (free + speculative + inactive) * page_size
+        used = max(total_bytes - available, 0)
+        return int(round(100 * used / max(total_bytes, 1)))
     meminfo: dict[str, int] = {}
     with open("/proc/meminfo", "r", encoding="utf-8") as f:
         for line in f:
@@ -253,7 +280,8 @@ def _reap_zombie(pid: int) -> None:
         pass
 
 
-def launch_job(job: Job, log_dir: Path, gpu_util: int, gpu_mem: int) -> None:
+def launch_job(job: Job, log_dir: Path, gpu_util: int, gpu_mem: int,
+               force_device: str = "auto") -> None:
     """Запускает job через bash -c, в новой process group, с записью exit code в .exit."""
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{job.job_id}.log"
@@ -263,12 +291,16 @@ def launch_job(job: Job, log_dir: Path, gpu_util: int, gpu_mem: int) -> None:
 
     wrapped = f'({job.cmd}); echo $? > "{exit_path}"'
     log_file = log_path.open("w")
+    env = os.environ.copy()
+    if force_device != "auto":
+        env["NEW_ARCH_DEVICE"] = force_device
     p = subprocess.Popen(
         ["bash", "-c", wrapped],
         cwd=str(ROOT),
         stdout=log_file,
         stderr=subprocess.STDOUT,
         start_new_session=True,
+        env=env,
     )
     job.pid = p.pid
     job.status = STATUS_RUNNING
@@ -338,6 +370,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--poll-interval", type=int, default=10,
                    help="секунды между опросом GPU и записью state")
     p.add_argument("--gpu-index", type=int, default=0)
+    p.add_argument("--force-device", choices=["auto", "cpu"], default="auto",
+                   help="форсировать устройство для дочерних процессов; локально удобно cpu")
     return p.parse_args()
 
 
@@ -353,8 +387,18 @@ def main() -> None:
     if not args.jobs.exists():
         raise SystemExit(f"jobs.csv не найден: {args.jobs}")
 
-    monitor = GpuMonitor(args.gpu_index)
-    print(f"  GPU[{args.gpu_index}]: {monitor.name}")
+    monitor = None
+    if args.force_device == "auto":
+        if pynvml is None:
+            raise SystemExit(
+                "nvidia-ml-py (pynvml) не установлен. "
+                "Установить: uv add nvidia-ml-py "
+                "или запустить с --force-device cpu"
+            )
+        monitor = GpuMonitor(args.gpu_index)
+        print(f"  GPU[{args.gpu_index}]: {monitor.name}")
+    else:
+        print("  GPU мониторинг отключён, дочерние процессы будут запускаться с NEW_ARCH_DEVICE=cpu")
 
     plan = load_jobs_csv(args.jobs)
     state = load_state(args.state)
@@ -387,8 +431,12 @@ def main() -> None:
                 update_running_job(j, args.log_dir)
 
             # 2. Опрос GPU.
-            gpu_util = monitor.util_percent()
-            gpu_mem = monitor.mem_used_pct()
+            if monitor is not None:
+                gpu_util = monitor.util_percent()
+                gpu_mem = monitor.mem_used_pct()
+            else:
+                gpu_util = 0
+                gpu_mem = 0
             host_mem = host_mem_used_pct()
 
             # 3. Сколько задач можно запустить ещё?
@@ -404,7 +452,7 @@ def main() -> None:
                 # Запускаем по одной за тик — даём метрикам обновиться.
                 if queued:
                     j = queued[0]
-                    launch_job(j, args.log_dir, gpu_util, gpu_mem)
+                    launch_job(j, args.log_dir, gpu_util, gpu_mem, force_device=args.force_device)
                     launched_this_tick = 1
                     print(f"  [{j.job_id}] start  pid={j.pid}  "
                           f"util={gpu_util}%  gpu_mem={gpu_mem}%  "

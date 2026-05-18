@@ -14,6 +14,9 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import os
+import shutil
+import tempfile
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -334,7 +337,7 @@ def save_grouped_checkpoint(states_by_fold: dict[str, Any],
         if torch is None:  # pragma: no cover
             raise RuntimeError("torch не установлен — backend='torch' недоступен")
         path = model_dir_path / build_grouped_checkpoint_filename(meta, epoch, ext="pt")
-        torch.save(states_by_fold, path)
+        _safe_torch_save(states_by_fold, path)
     elif backend == "joblib":
         path = model_dir_path / build_grouped_checkpoint_filename(meta, epoch, ext="joblib")
         joblib.dump(states_by_fold, path)
@@ -364,10 +367,40 @@ def save_model_checkpoint(model: Any,
     path = model_dir_path / build_checkpoint_filename(meta, fold_id, ext, epoch=epoch)
 
     if is_torch:
-        torch.save(model.state_dict(), path)
+        _safe_torch_save(model.state_dict(), path)
     else:
         joblib.dump(model, path)
     return path
+
+
+def _safe_torch_save(obj: Any, final_path: Path) -> None:
+    """Надёжно сохраняет torch-объект в .pt.
+
+    Почему так:
+      • у нас есть путь с не-ASCII символами;
+      • в некоторых сборках torch zip-serialization падает на таких путях;
+      • поэтому пишем во временный ASCII-файл в /tmp и потом переносим.
+
+    Для совместимости используем legacy-serialization без zipfile writer.
+    """
+    if torch is None:  # pragma: no cover
+        raise RuntimeError("torch не установлен")
+
+    final_path = Path(final_path)
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, tmp_name = tempfile.mkstemp(prefix="new_arch_torch_", suffix=final_path.suffix, dir="/tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        torch.save(obj, tmp_path, _use_new_zipfile_serialization=False)
+        shutil.move(str(tmp_path), str(final_path))
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass
 
 
 def validate_predictions_dataframe(df: pd.DataFrame) -> None:

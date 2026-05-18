@@ -1,0 +1,77 @@
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+/Users/tascan/Desktop/диссер/new_arch/.venv/lib/python3.14/site-packages/torch/nn/utils/weight_norm.py:144: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+[TCN1] Causal PureTCN, seq=30 строк (150 сек), RF=31
+  model_id=TCN1_bba44bd4  device=cpu
+  target=lt1  feature_set=EMG  with_abs=True  wavelet_mode=none
+  seq_len=30  int_stride=5s  out_stride=5s
+  max_epochs=40  checkpoint_every=4
+  → /Users/tascan/Desktop/диссер/new_arch/results/TCN1/models.csv
+  n_subjects=18  n_features=79  n_windows=4130
+  fold loso_subject_S001       n=213   MAE_final=3.242 мин  params=32225  ckpts=10  (207.8s)
+  fold loso_subject_S002       n=127   MAE_final=5.044 мин  params=32225  ckpts=10  (257.8s)
+  fold loso_subject_S003       n=290   MAE_final=6.052 мин  params=32225  ckpts=10  (236.8s)
+  fold loso_subject_S004       n=143   MAE_final=3.177 мин  params=32225  ckpts=10  (239.2s)
+  fold loso_subject_S005       n=235   MAE_final=6.136 мин  params=32225  ckpts=10  (236.3s)
+  fold loso_subject_S006       n=112   MAE_final=2.009 мин  params=32225  ckpts=10  (243.3s)
+  fold loso_subject_S007       n=198   MAE_final=2.296 мин  params=32225  ckpts=10  (241.1s)
+  fold loso_subject_S008       n=121   MAE_final=3.262 мин  params=32225  ckpts=10  (244.6s)
+  fold loso_subject_S009       n=327   MAE_final=16.105 мин  params=32225  ckpts=10  (228.8s)
+  fold loso_subject_S010       n=291   MAE_final=4.610 мин  params=32225  ckpts=10  (231.1s)
+  fold loso_subject_S011       n=154   MAE_final=0.990 мин  params=32225  ckpts=10  (245.4s)
+  fold loso_subject_S012       n=134   MAE_final=1.526 мин  params=32225  ckpts=10  (252.5s)
+  fold loso_subject_S013       n=236   MAE_final=4.044 мин  params=32225  ckpts=10  (232.9s)
+  fold loso_subject_S014       n=198   MAE_final=3.232 мин  params=32225  ckpts=10  (233.4s)
+  fold loso_subject_S016       n=159   MAE_final=1.963 мин  params=32225  ckpts=10  (228.8s)
+  fold loso_subject_S017       n=192   MAE_final=1.217 мин  params=32225  ckpts=10  (232.5s)
+  fold loso_subject_S018       n=188   MAE_final=0.932 мин  params=32225  ckpts=10  (230.5s)
+  fold loso_subject_S019       n=290   MAE_final=4.257 мин  params=32225  ckpts=10  (226.0s)
+
+  Всего 18 folds, 4249.5s
+  MAE по эпохам (мин):
+    epoch=  4  MAE=4.288  ← best
+    epoch=  8  MAE=4.423
+    epoch= 12  MAE=4.400
+    epoch= 16  MAE=4.415
+    epoch= 20  MAE=4.521
+    epoch= 24  MAE=4.485
+    epoch= 28  MAE=4.546
+    epoch= 32  MAE=4.504
+    epoch= 36  MAE=4.554
+    epoch= 40  MAE=4.593
+  → /Users/tascan/Desktop/диссер/new_arch/results/TCN1/TCN1_bba44bd4/history.csv  (720 строк)
+  → /Users/tascan/Desktop/диссер/new_arch/results/TCN1/TCN1_bba44bd4/predictions_TCN1_bba44bd4.parquet  (36080 строк)
+  → /Users/tascan/Desktop/диссер/new_arch/results/TCN1/TCN1_bba44bd4/model_TCN1_bba44bd4_epoch-*.pt  (10 файлов)
