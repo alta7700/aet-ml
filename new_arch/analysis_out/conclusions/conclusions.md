@@ -6,10 +6,10 @@ P-values скорректированы методом Benjamini–Hochberg (FDR
 
 ## Multimodal fusion vs unimodal EMG
 Сравнений (multi vs EMG): 24. Multi значимо лучше: 0 (доля 0%, α=0.05).
-median Δ = +24.4 sec.
+median Δ = +23.4 sec.
 
 ## ABS (|EMG|) features
-Сравнений (abs vs no_abs): 405. ABS значимо лучше: 0 (0%). median Δ = +6.9 sec.
+Сравнений (abs vs no_abs): 406. ABS значимо лучше: 0 (0%). median Δ = +7.0 sec.
 
 ## Wavelet preprocessing
 - cwt vs none: n=6, значимых 0; median Δ = +2.8 sec → лучше **none**
@@ -22,7 +22,7 @@ median Δ = +24.4 sec.
 Средний lt_mae_median_policy_mean по семействам:
 - **LSTM**: 178.1 sec
 - **Lin**: 182.2 sec
-- **TCN**: 183.3 sec
+- **TCN**: 183.0 sec
 
 Лучшее семейство по primary метрике: **LSTM**.
 
@@ -41,11 +41,11 @@ median Δ = +24.4 sec.
 ## Uncertainty (Jackknife+ conformal, LT median policy)
 Конформные интервалы построены leave-one-subject-out (N=18). Из-за малой калибровочной выборки честно репортируются только умеренные α: эмпирическое покрытие должно сходиться к 1−α.
 
-- α=0.20 (nominal 80%): median empirical=89%, gap=+8.89%, median width=780 sec. Моделей с покрытием в пределах ±5% от nominal: 0/810.
-- α=0.30 (nominal 70%): median empirical=78%, gap=+7.78%, median width=548 sec. Моделей с покрытием в пределах ±5% от nominal: 0/810.
+- α=0.20 (nominal 80%): median empirical=89%, gap=+8.89%, median width=780 sec. Моделей с покрытием в пределах ±5% от nominal: 0/812.
+- α=0.30 (nominal 70%): median empirical=78%, gap=+7.78%, median width=548 sec. Моделей с покрытием в пределах ±5% от nominal: 0/812.
 
-## Training stability (230 NN-моделей)
+## Training stability (232 NN-моделей)
 - Средний converged_rate (доля фолдов с |slope| ниже порога): 30%.
-- Median training_instability (CV последних шагов): 0.742.
+- Median training_instability (CV последних шагов): 0.743.
 - Mean train_mae_slope_last_K: -0.002 sec/epoch (отрицательный = всё ещё улучшается).
 **Замечание:** без validation-split это не overfitting, а только динамика train-метрик.
