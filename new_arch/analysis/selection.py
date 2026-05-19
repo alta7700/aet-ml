@@ -44,10 +44,10 @@ def _rank_lt(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _rank_trajectory(df: pd.DataFrame) -> pd.DataFrame:
-    """Trajectory-ranking: глобальная ошибка + хвостовые ошибки + R²."""
+    """Trajectory-ranking: глобальная ошибка + хвостовые ошибки + устойчивый R²."""
     out = df.sort_values(
-        ["mae_mean", "catastrophic_rate_mean", "r2_mean"],
-        ascending=[True, True, False],
+        ["mae_mean", "catastrophic_rate_mean", "r2_median", "r2_mean"],
+        ascending=[True, True, False, False],
         kind="stable",
     ).reset_index(drop=True)
     out["trajectory_rank"] = out.index + 1
@@ -61,7 +61,17 @@ def _admissibility_table(summary: pd.DataFrame, target: str,
     if df.empty:
         return df
 
-    df["pass_r2"] = df["r2_mean"] >= rules.min_r2_mean
+    mode = str(rules.selection_mode).lower()
+    if mode not in {"robust", "strict"}:
+        raise ValueError(
+            f"selection_mode={rules.selection_mode!r} — допустимы 'robust' | 'strict'")
+
+    df["pass_r2_median"] = df["r2_median"] >= rules.min_r2_median
+    df["pass_r2_mean"] = df["r2_mean"] >= rules.min_r2_mean
+    if mode == "robust":
+        df["pass_r2"] = df["pass_r2_median"]
+    else:
+        df["pass_r2"] = df["pass_r2_median"] & df["pass_r2_mean"]
     df["pass_catastrophic"] = (
         df["catastrophic_rate_mean"] <= rules.max_catastrophic_rate_mean)
     df["pass_zero_crossing"] = (
@@ -78,8 +88,10 @@ def _admissibility_table(summary: pd.DataFrame, target: str,
     reasons: list[str] = []
     for _, row in df.iterrows():
         fail: list[str] = []
-        if not bool(row["pass_r2"]):
-            fail.append(f"r2<{rules.min_r2_mean:.2f}")
+        if not bool(row["pass_r2_median"]):
+            fail.append(f"r2_med<{rules.min_r2_median:.2f}")
+        if mode == "strict" and not bool(row["pass_r2_mean"]):
+            fail.append(f"r2_mean<{rules.min_r2_mean:.2f}")
         if not bool(row["pass_catastrophic"]):
             fail.append(
                 f"cat>{rules.max_catastrophic_rate_mean:.2f}")
@@ -91,6 +103,7 @@ def _admissibility_table(summary: pd.DataFrame, target: str,
                 f"scov<{rules.min_stable_window_coverage:.2f}")
         reasons.append("" if not fail else ";".join(fail))
     df["admissibility_fail_reasons"] = reasons
+    df["selection_mode"] = mode
     return df
 
 
@@ -150,6 +163,12 @@ def _select_finalists(admissible_df: pd.DataFrame,
 def build_selection_tables(model_summary: pd.DataFrame,
                            cfg: AnalysisConfig) -> dict[str, pd.DataFrame]:
     """Строит таблицы raw/admissible/finalists/selected_for_shap по target."""
+    if cfg.selection_family:
+        summary_scope = model_summary[
+            model_summary["family"] == cfg.selection_family].copy()
+    else:
+        summary_scope = model_summary.copy()
+
     raw_rows: list[pd.DataFrame] = []
     admissibility_rows: list[pd.DataFrame] = []
     finalists_rows: list[pd.DataFrame] = []
@@ -157,7 +176,7 @@ def build_selection_tables(model_summary: pd.DataFrame,
 
     for target in TARGETS:
         rules = _rules_for(cfg, target)
-        target_df = model_summary[model_summary["target"] == target].copy()
+        target_df = summary_scope[summary_scope["target"] == target].copy()
         if target_df.empty:
             continue
 
@@ -166,7 +185,7 @@ def build_selection_tables(model_summary: pd.DataFrame,
         raw["selection_table"] = "raw_lt"
         raw_rows.append(raw)
 
-        admissibility = _admissibility_table(model_summary, target, rules)
+        admissibility = _admissibility_table(summary_scope, target, rules)
         admissibility["selection_target"] = target
         admissibility_rows.append(admissibility)
 
@@ -181,10 +200,9 @@ def build_selection_tables(model_summary: pd.DataFrame,
             selected = finalists.sort_values(
                 ["lt_rank", "trajectory_rank", "lt_mae_median_policy_mean"],
                 kind="stable",
-            ).head(rules.shap_top_k).copy()
+            ).copy()
             selected["selection_target"] = target
             selected["selection_table"] = "selected_for_shap"
-            selected["shap_top_k"] = rules.shap_top_k
             shap_rows.append(selected)
 
     def _concat(parts: list[pd.DataFrame]) -> pd.DataFrame:

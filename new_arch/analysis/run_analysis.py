@@ -30,6 +30,7 @@ if str(_ROOT) not in sys.path:
 from analysis import (
     aggregation, comparisons as cmp_mod, conclusions, conformal as conf_mod,
     loader, lt_search_viz, plotting, ranking as ranking_mod, reporting,
+    shap_analysis,
     training_dynamics as td_mod, validation,
 )
 from analysis.schemas import AnalysisConfig, load_config
@@ -125,6 +126,12 @@ def cmd_build_cache(cfg: AnalysisConfig, *, disc=None, rep=None):
         robustness.to_parquet(cfg.robustness_ranking_path, index=False)
         print(f"  robustness_ranking rows: {len(robustness)}")
 
+    print("build-cache: SHAP (family=Lin finalists)…")
+    shap_tables = shap_analysis.build_shap_tables(summary, preds_sel, cfg)
+    print(f"  shap_subject rows: {len(shap_tables['subject'])}; "
+          f"shap_global rows: {len(shap_tables['global'])}; "
+          f"shap_modality rows: {len(shap_tables['modality'])}")
+
     return {
         "preds_best": preds_sel,
         "preds_selected": preds_sel,
@@ -135,6 +142,9 @@ def cmd_build_cache(cfg: AnalysisConfig, *, disc=None, rep=None):
         "conformal_intervals": conf_int_df,
         "conformal_summary": conf_sum_df,
         "robustness": robustness,
+        "shap_global": shap_tables["global"],
+        "shap_subject": shap_tables["subject"],
+        "shap_modality": shap_tables["modality"],
     }
 
 
@@ -162,12 +172,18 @@ def cmd_plot(cfg: AnalysisConfig, *, cache=None,
                     if cfg.conformal_summary_path.exists() else None)
         train_dyn = (pd.read_parquet(cfg.training_dynamics_path)
                      if cfg.training_dynamics_path.exists() else None)
+        shap_global = (pd.read_parquet(cfg.shap_global_summary_path)
+                       if cfg.shap_global_summary_path.exists() else None)
+        shap_modality = (pd.read_parquet(cfg.shap_modality_summary_path)
+                         if cfg.shap_modality_summary_path.exists() else None)
     else:
         preds_sel, subj, lt, summary = (
             cache["preds_selected"], cache["subject"],
             cache["lt"], cache["summary"])
         conf_sum = cache.get("conformal_summary")
         train_dyn = cache.get("training_dynamics")
+        shap_global = cache.get("shap_global")
+        shap_modality = cache.get("shap_modality")
 
     if comparisons_written is None:
         comparisons_written = {
@@ -185,6 +201,13 @@ def cmd_plot(cfg: AnalysisConfig, *, cache=None,
         comparisons=comparison_dfs, cfg=cfg,
         conformal_summary=conf_sum, training_dynamics=train_dyn,
     )
+    shap_files = shap_analysis.plot_shap_figures(
+        shap_global if shap_global is not None else pd.DataFrame(),
+        shap_modality if shap_modality is not None else pd.DataFrame(),
+        cfg,
+    )
+    if shap_files:
+        out["shap"] = shap_files
     total = sum(len(v) for v in out.values())
     print(f"  сохранено {total} файлов фигур в {cfg.figures_dir}")
     return out
@@ -200,11 +223,20 @@ def cmd_report(cfg: AnalysisConfig, *, cache=None,
                      if cfg.training_summary_path.exists() else None)
         rob = (pd.read_parquet(cfg.robustness_ranking_path)
                if cfg.robustness_ranking_path.exists() else None)
+        shap_global = (pd.read_parquet(cfg.shap_global_summary_path)
+                       if cfg.shap_global_summary_path.exists() else None)
+        shap_subject = (pd.read_parquet(cfg.shap_subject_summary_path)
+                        if cfg.shap_subject_summary_path.exists() else None)
+        shap_modality = (pd.read_parquet(cfg.shap_modality_summary_path)
+                         if cfg.shap_modality_summary_path.exists() else None)
     else:
         summary = cache["summary"]
         conf_sum = cache.get("conformal_summary")
         train_sum = cache.get("training_summary")
         rob = cache.get("robustness")
+        shap_global = cache.get("shap_global")
+        shap_subject = cache.get("shap_subject")
+        shap_modality = cache.get("shap_modality")
     if comparisons_written is None:
         comparisons_written = {
             p.stem: p for p in cfg.comparisons_dir.glob("*.parquet")
@@ -217,7 +249,11 @@ def cmd_report(cfg: AnalysisConfig, *, cache=None,
     out = reporting.export_dissertation_tables(
         summary, comparison_dfs, cfg,
         conformal_summary=conf_sum, training_summary=train_sum,
-        robustness=rob)
+        robustness=rob,
+        shap_global=shap_global,
+        shap_subject=shap_subject,
+        shap_modality=shap_modality,
+    )
     print(f"  таблиц сохранено: {len(out)}, workbook={out.get('workbook')}")
     return out
 

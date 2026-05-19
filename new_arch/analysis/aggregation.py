@@ -376,6 +376,7 @@ def build_model_summary(subject_metrics_df: pd.DataFrame,
             "bias_mean": bias_a["mean"], "bias_std": bias_a["std"],
 
             "r2_mean": float(np.nanmean(r2_vec)),
+            "r2_median": float(np.nanmedian(r2_vec)),
             "pearson_r_mean": float(np.nanmean(prn_vec)),
             "catastrophic_rate_mean": float(np.mean(cat_vec)),
         }

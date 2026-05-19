@@ -61,7 +61,7 @@ _TOP_COLS_PRIMARY = [
     "feature_set", "with_abs", "wavelet_mode",
     "lt_mae_median_policy_mean", "lt_mae_median_policy_std",
     "lt_mae_median_policy_ci_low", "lt_mae_median_policy_ci_high",
-    "mae_mean", "catastrophic_rate_mean",
+    "mae_mean", "r2_mean", "r2_median", "catastrophic_rate_mean",
     "composite_score",
 ]
 
@@ -72,6 +72,9 @@ def export_dissertation_tables(model_summary: pd.DataFrame,
                                 conformal_summary: pd.DataFrame | None = None,
                                 training_summary: pd.DataFrame | None = None,
                                 robustness: pd.DataFrame | None = None,
+                                shap_global: pd.DataFrame | None = None,
+                                shap_subject: pd.DataFrame | None = None,
+                                shap_modality: pd.DataFrame | None = None,
                                 ) -> dict[str, Path]:
     """Готовит и сохраняет CSV/XLSX/TEX для стандартного набора таблиц."""
     out: dict[str, Path] = {}
@@ -152,6 +155,19 @@ def export_dissertation_tables(model_summary: pd.DataFrame,
                     f"(point + uncertainty + stability)",
             label="tab:robustness_top",
             float_format="%.2f")
+
+    if shap_global is not None and not shap_global.empty:
+        out["shap_global_csv"] = to_csv(
+            shap_global, tables_dir / "shap_global_summary.csv")
+        sheets["shap_global_summary"] = shap_global
+    if shap_subject is not None and not shap_subject.empty:
+        out["shap_subject_csv"] = to_csv(
+            shap_subject, tables_dir / "shap_subject_summary.csv")
+        sheets["shap_subject_summary"] = shap_subject
+    if shap_modality is not None and not shap_modality.empty:
+        out["shap_modality_csv"] = to_csv(
+            shap_modality, tables_dir / "shap_modality_summary.csv")
+        sheets["shap_modality_summary"] = shap_modality
 
     # 5) единый Excel
     out["workbook"] = to_excel(tables_dir / "analysis.xlsx", sheets)

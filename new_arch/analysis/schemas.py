@@ -77,7 +77,7 @@ MODEL_SUMMARY_COLUMNS: list[str] = [
     "mae_ci_low", "mae_ci_high",
     "rmse_mean", "rmse_std",
     "bias_mean", "bias_std",
-    "r2_mean", "pearson_r_mean",
+    "r2_mean", "r2_median", "pearson_r_mean",
     "catastrophic_rate_mean",
     # дорожка B — median policy
     "lt_mae_median_policy_mean", "lt_mae_median_policy_std",
@@ -197,6 +197,8 @@ class CompositeWeights:
 @dataclass
 class SelectionTargetRules:
     """Правила admissibility и shortlist-отбора для одного target."""
+    selection_mode: str = "robust"
+    min_r2_median: float = 0.0
     min_r2_mean: float = 0.0
     max_catastrophic_rate_mean: float = 0.50
     min_zero_crossing_coverage: float = 0.0
@@ -205,6 +207,16 @@ class SelectionTargetRules:
     trajectory_top_quantile: float = 0.25
     fallback_quantile: float = 1.0 / 3.0
     shap_top_k: int = 3
+
+
+@dataclass
+class ShapConfig:
+    """Параметры SHAP-анализа для классических моделей."""
+    enabled: bool = True
+    background_max_samples: int = 256
+    kernel_background_samples: int = 50
+    kernel_nsamples: int = 128
+    random_seed: int = 42
 
 
 @dataclass
@@ -232,13 +244,16 @@ class AnalysisConfig:
 
     # Композитный скор
     composite_weights: CompositeWeights = field(default_factory=CompositeWeights)
+    selection_family: str | None = "Lin"
     selection_rules: dict[str, SelectionTargetRules] = field(default_factory=lambda: {
         "lt1": SelectionTargetRules(),
         "lt2": SelectionTargetRules(
+            selection_mode="strict",
             min_zero_crossing_coverage=0.80,
             min_stable_window_coverage=0.80,
         ),
     })
+    shap: ShapConfig = field(default_factory=ShapConfig)
 
     # multitest defaults дублируем тут чтобы reload_config их учёл (см. ниже)
 
@@ -343,6 +358,18 @@ class AnalysisConfig:
         return self.cache_dir / "model_summary.parquet"
 
     @property
+    def shap_global_summary_path(self) -> Path:
+        return self.cache_dir / "shap_global_summary.parquet"
+
+    @property
+    def shap_subject_summary_path(self) -> Path:
+        return self.cache_dir / "shap_subject_summary.parquet"
+
+    @property
+    def shap_modality_summary_path(self) -> Path:
+        return self.cache_dir / "shap_modality_summary.parquet"
+
+    @property
     def comparisons_dir(self) -> Path:
         return self.out_root / "comparisons"
 
@@ -439,12 +466,19 @@ def load_config(path: Path | None = None) -> AnalysisConfig:
 
     if "selection" in raw:
         sec = raw["selection"]
+        if "family" in sec:
+            family = sec["family"]
+            cfg.selection_family = None if family is None else str(family)
         for target in TARGETS:
             if target not in sec:
                 continue
             cur = cfg.selection_rules.get(target, SelectionTargetRules())
             tcfg = sec[target]
             cfg.selection_rules[target] = SelectionTargetRules(
+                selection_mode=str(tcfg.get(
+                    "selection_mode", cur.selection_mode)).lower(),
+                min_r2_median=float(tcfg.get(
+                    "min_r2_median", cur.min_r2_median)),
                 min_r2_mean=float(tcfg.get("min_r2_mean", cur.min_r2_mean)),
                 max_catastrophic_rate_mean=float(tcfg.get(
                     "max_catastrophic_rate_mean",
@@ -466,5 +500,19 @@ def load_config(path: Path | None = None) -> AnalysisConfig:
                     "fallback_quantile", cur.fallback_quantile)),
                 shap_top_k=int(tcfg.get("shap_top_k", cur.shap_top_k)),
             )
+
+    if "shap" in raw:
+        s = raw["shap"]
+        cur = cfg.shap
+        cfg.shap = ShapConfig(
+            enabled=bool(s.get("enabled", cur.enabled)),
+            background_max_samples=int(s.get(
+                "background_max_samples", cur.background_max_samples)),
+            kernel_background_samples=int(s.get(
+                "kernel_background_samples", cur.kernel_background_samples)),
+            kernel_nsamples=int(s.get(
+                "kernel_nsamples", cur.kernel_nsamples)),
+            random_seed=int(s.get("random_seed", cur.random_seed)),
+        )
 
     return cfg
