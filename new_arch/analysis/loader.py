@@ -75,6 +75,13 @@ def discover_artifacts(results_root: Path) -> DiscoveryResult:
     if "with_abs" in models_df.columns:
         models_df["with_abs"] = models_df["with_abs"].map(_to_bool)
 
+    # phase_split не имеет своей колонки в models.csv — он лежит внутри
+    # hyperparams_json только для non-default значений. Вытаскиваем его в
+    # отдельную колонку для удобства downstream-сравнений (default = "split").
+    if "hyperparams_json" in models_df.columns:
+        models_df["phase_split"] = models_df["hyperparams_json"].map(
+            _parse_phase_split)
+
     # Sanity: должны присутствовать обязательные колонки.
     missing_cols = [c for c in MODELS_CSV_COLUMNS if c not in models_df.columns]
     if missing_cols:
@@ -89,6 +96,21 @@ def discover_artifacts(results_root: Path) -> DiscoveryResult:
         architecture_dirs=arch_dirs,
         missing_predictions=missing,
     )
+
+
+def _parse_phase_split(hp_json: object) -> str:
+    """Извлекает phase_split из hyperparams_json; "split" если не указан."""
+    import json as _json
+    if not isinstance(hp_json, str) or not hp_json:
+        return "split"
+    try:
+        hp = _json.loads(hp_json)
+    except Exception:
+        return "split"
+    val = hp.get("phase_split") if isinstance(hp, dict) else None
+    if val in ("split", "full_cycles", "full_window"):
+        return val
+    return "split"
 
 
 def _to_bool(value) -> bool:

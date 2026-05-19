@@ -552,7 +552,7 @@ def extract_emg_kinematics_features(
     window_start_sec: float,
     window_end_sec: float,
 ) -> dict[str, object]:
-    """Извлекает 83 признака + QC-поля для одного скользящего окна.
+    """Извлекает 165 признаков + QC-поля для одного скользящего окна.
 
     Параметры
     ----------
@@ -639,6 +639,30 @@ def extract_emg_kinematics_features(
     features.update(_compute_stream_features(dist_rest, fs, "vl_dist_rest"))
     features.update(_compute_stream_features(prox_load, fs, "vl_prox_load"))
     features.update(_compute_stream_features(prox_rest, fs, "vl_prox_rest"))
+
+    # Ablation-стримы: те же 16 признаков, но без разделения на load/rest.
+    # full_cycles = объединение load+rest сэмплов в окне (только внутри циклов).
+    # full_window = все EMG-сэмплы в [window_start_sec, window_end_sec], включая
+    # межцикловые паузы. Нужны для эксперимента «помогает ли phase split EMG
+    # классическим моделям» — см. analysis/.../phase_split_within_arch.
+    dist_full_cycles = (np.concatenate([dist_load, dist_rest])
+                        if (dist_load.size + dist_rest.size) > 0
+                        else np.empty(0, dtype=float))
+    prox_full_cycles = (np.concatenate([prox_load, prox_rest])
+                        if (prox_load.size + prox_rest.size) > 0
+                        else np.empty(0, dtype=float))
+
+    prox_mask = (
+        (session.emg_vl_prox_times >= window_start_sec)
+        & (session.emg_vl_prox_times < window_end_sec)
+    )
+    dist_full_window = session.emg_vl_dist_values[dist_mask]
+    prox_full_window = session.emg_vl_prox_values[prox_mask]
+
+    features.update(_compute_stream_features(dist_full_cycles, fs, "vl_dist_full_cycles"))
+    features.update(_compute_stream_features(dist_full_window, fs, "vl_dist_full_window"))
+    features.update(_compute_stream_features(prox_full_cycles, fs, "vl_prox_full_cycles"))
+    features.update(_compute_stream_features(prox_full_window, fs, "vl_prox_full_window"))
 
     # Производные prox-dist признаки (8)
     features.update(_compute_prox_dist_derived(features))
@@ -768,23 +792,27 @@ def _compute_kinematics_features(cycles: list[CyclePhase]) -> dict[str, float]:
 
 
 def _all_feature_names() -> list[str]:
-    """Возвращает список всех 83 имён признаков (без QC-полей).
+    """Возвращает список всех имён признаков (без QC-полей).
 
     Состав:
-    - 64 stream-признака  (16 × 4 потока)
-    - 8 prox-dist производных
+    - 128 stream-признаков (16 × 8 потоков: dist/prox × load/rest/full_cycles/full_window)
+    - 8 prox-dist производных (по load/rest)
     - 7 кинематических (включая CV длительностей)
-    - 4 EMG CV амплитуды цикл-к-циклу
-    - 18 timing Trend CV + SampEn на 3 масштабах (30s / 60s / 120s):
-        load/rest × (trend_cv_slope, trend_cv_ratio, sampen) × 3 = 18
-    Итого: 101
+    - 4 EMG CV амплитуды цикл-к-циклу (load/rest)
+    - 18 timing Trend CV + SampEn на 3 масштабах (30s / 60s / 120s)
+    Итого: 165
     """
     feature_suffixes = [
         "rms", "mav", "wl", "zcr",
         "mdf", "mnf", "p_low", "p_mid", "p_high", "ratio_mid_high",
         "e_d2", "e_d3", "e_d4", "e_d5", "wavelet_entropy", "ratio_low_high",
     ]
-    streams = ["vl_dist_load", "vl_dist_rest", "vl_prox_load", "vl_prox_rest"]
+    streams = [
+        "vl_dist_load", "vl_dist_rest", "vl_prox_load", "vl_prox_rest",
+        # Ablation-стримы без phase split: см. extract_emg_kinematics_features.
+        "vl_dist_full_cycles", "vl_dist_full_window",
+        "vl_prox_full_cycles", "vl_prox_full_window",
+    ]
     stream_features = [f"{s}_{f}" for s in streams for f in feature_suffixes]
     derived = [
         "delta_rms_prox_dist_load", "ratio_rms_prox_dist_load",

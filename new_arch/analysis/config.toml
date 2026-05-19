@@ -38,6 +38,7 @@ optional = [
     "stateful_vs_stateless",
     "attention_vs_plain",
     "stride_within_arch",
+    "phase_split_within_arch",
 ]
 primary_metric = "lt_mae_median_policy_mean"
 secondary_metric = "mae_mean"
@@ -53,3 +54,23 @@ alpha = 0.05
 top_n = 10
 figure_dpi = 150
 figure_formats = ["png", "svg", "pdf"]
+
+[selection.lt1]
+min_r2_mean = 0.0
+max_catastrophic_rate_mean = 0.50
+min_zero_crossing_coverage = 0.0
+min_stable_window_coverage = 0.0
+lt_top_quantile = 0.25
+trajectory_top_quantile = 0.25
+fallback_quantile = 0.3333333333
+shap_top_k = 3
+
+[selection.lt2]
+min_r2_mean = 0.0
+max_catastrophic_rate_mean = 0.50
+min_zero_crossing_coverage = 0.80
+min_stable_window_coverage = 0.80
+lt_top_quantile = 0.25
+trajectory_top_quantile = 0.25
+fallback_quantile = 0.3333333333
+shap_top_k = 3

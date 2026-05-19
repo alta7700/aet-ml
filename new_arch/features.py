@@ -166,15 +166,47 @@ def prepare_data(df_raw: pd.DataFrame,
 
 
 def get_feature_cols(df: pd.DataFrame, feature_set: str,
-                     with_abs: bool = True) -> list[str]:
+                     with_abs: bool = True,
+                     phase_split: str = "split") -> list[str]:
     """Возвращает список колонок для заданного набора признаков.
 
     Поддерживаемые наборы: EMG, NIRS, HRV, EMG+NIRS, EMG+NIRS+HRV.
     Если with_abs=False, абсолютные признаки из EXCLUDE_ABS исключаются.
+
+    Параметр ``phase_split`` управляет тем, какие EMG-stream-фичи (TD/FFT/DWT
+    по сигналу EMG) попадают в модель:
+      - ``"split"``        — только потоки vl_*_load_* и vl_*_rest_* (текущий
+        baseline; фазы push/pull разделены).
+      - ``"full_cycles"``  — только потоки vl_*_full_cycles_* (фичи считаются
+        по конкатенации load+rest сэмплов в окне; без разделения, но в пределах
+        детектированных циклов).
+      - ``"full_window"``  — только потоки vl_*_full_window_* (фичи по всем
+        EMG-сэмплам окна, включая межцикловые паузы).
+
+    Timing/kinematic-фичи (load_duration_*, rest_sampen_*, cadence_*) и
+    interaction/NIRS/HRV блоки не зависят от phase_split — они всегда
+    включаются, если выбраны соответствующим feature_set.
     """
+    if phase_split not in ("split", "full_cycles", "full_window"):
+        raise ValueError(
+            f"phase_split: ожидается 'split'|'full_cycles'|'full_window', "
+            f"получено {phase_split!r}")
+
     all_cols = set(df.columns)
 
-    emg_cols = [c for c in df.columns if c.startswith("z_vl_")]
+    def _is_split(col: str) -> bool:
+        return ("_load_" in col) or ("_rest_" in col)
+
+    def _matches_phase(col: str) -> bool:
+        if phase_split == "split":
+            return _is_split(col)
+        if phase_split == "full_cycles":
+            return "_full_cycles_" in col
+        # full_window
+        return "_full_window_" in col
+
+    emg_cols = [c for c in df.columns
+                if c.startswith("z_vl_") and _matches_phase(c)]
     kin_cols = [c for c in df.columns
                 if c.startswith("z_") and not c.startswith("z_vl_")]
 

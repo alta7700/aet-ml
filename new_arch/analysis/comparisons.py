@@ -250,6 +250,29 @@ def attention_vs_plain(metric_df: pd.DataFrame, *, metric: str,
         metric=metric, cfg=cfg)
 
 
+def phase_split_within_arch(metric_df: pd.DataFrame, *, metric: str,
+                            cfg: AnalysisConfig) -> pd.DataFrame:
+    """Сравнение phase_split вариантов внутри (arch, target, feature_set, with_abs).
+
+    Ablation: помогает ли разделение EMG-сигнала на load/rest фазы по
+    сравнению с обработкой по всему окну (full_cycles / full_window).
+    Условный builder: tolerant к отсутствию данных одного из режимов.
+    """
+    if "phase_split" not in metric_df.columns:
+        warnings.warn("phase_split_within_arch: колонка phase_split отсутствует, skip")
+        return pd.DataFrame(columns=COMPARISON_COLUMNS)
+    df = metric_df.copy()
+    if df["phase_split"].nunique() < 2:
+        warnings.warn("phase_split_within_arch: один режим на всю выборку, skip")
+        return pd.DataFrame(columns=COMPARISON_COLUMNS)
+    return _build_pairwise(
+        df,
+        comparison_kind="phase_split_within_arch",
+        group_keys=["architecture_id", "target", "feature_set", "with_abs"],
+        condition_col="phase_split",
+        metric=metric, cfg=cfg)
+
+
 def stride_within_arch(metric_df: pd.DataFrame, *, metric: str,
                        cfg: AnalysisConfig) -> pd.DataFrame:
     """Сравнение разных stride_sec внутри (family, target, feature_set, with_abs)."""
@@ -277,6 +300,7 @@ REGISTRY = {
     "stateful_vs_stateless": stateful_vs_stateless,
     "attention_vs_plain": attention_vs_plain,
     "stride_within_arch": stride_within_arch,
+    "phase_split_within_arch": phase_split_within_arch,
 }
 
 

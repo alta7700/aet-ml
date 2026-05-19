@@ -6,22 +6,27 @@ P-values скорректированы методом Benjamini–Hochberg (FDR
 
 ## Multimodal fusion vs unimodal EMG
 Сравнений (multi vs EMG): 24. Multi значимо лучше: 0 (доля 0%, α=0.05).
-median Δ = +23.4 sec.
+median Δ = +24.2 sec.
 
 ## ABS (|EMG|) features
-Сравнений (abs vs no_abs): 406. ABS значимо лучше: 0 (0%). median Δ = +7.0 sec.
+Сравнений (abs vs no_abs): 406. ABS значимо лучше: 0 (0%). median Δ = +7.3 sec.
 
 ## Wavelet preprocessing
 - cwt vs none: n=6, значимых 0; median Δ = +2.8 sec → лучше **none**
 - dwt vs none: n=6, значимых 0; median Δ = -15.7 sec → лучше **dwt**
 
+## EMG phase split (load/rest vs full)
+- full_cycles vs full_window: n=232, значимых 0; median Δ = -0.9 sec → лучше **full_cycles**
+- full_cycles vs split: n=232, значимых 0; median Δ = -5.8 sec → лучше **full_cycles**
+- full_window vs split: n=232, значимых 0; median Δ = -6.2 sec → лучше **full_window**
+
 ## LT1 vs LT2 difficulty
-Сравнений: 356, значимых 0. Median Δ(LT1 − LT2) = +21.9 sec → LT2 проще.
+Сравнений: 356, значимых 0. Median Δ(LT1 − LT2) = +15.2 sec → LT2 проще.
 
 ## Architecture family
 Средний lt_mae_median_policy_mean по семействам:
 - **LSTM**: 178.1 sec
-- **Lin**: 182.2 sec
+- **Lin**: 179.6 sec
 - **TCN**: 183.0 sec
 
 Лучшее семейство по primary метрике: **LSTM**.
@@ -41,8 +46,8 @@ median Δ = +23.4 sec.
 ## Uncertainty (Jackknife+ conformal, LT median policy)
 Конформные интервалы построены leave-one-subject-out (N=18). Из-за малой калибровочной выборки честно репортируются только умеренные α: эмпирическое покрытие должно сходиться к 1−α.
 
-- α=0.20 (nominal 80%): median empirical=89%, gap=+8.89%, median width=780 sec. Моделей с покрытием в пределах ±5% от nominal: 0/812.
-- α=0.30 (nominal 70%): median empirical=78%, gap=+7.78%, median width=548 sec. Моделей с покрытием в пределах ±5% от nominal: 0/812.
+- α=0.20 (nominal 80%): median empirical=89%, gap=+8.89%, median width=800 sec. Моделей с покрытием в пределах ±5% от nominal: 0/1276.
+- α=0.30 (nominal 70%): median empirical=78%, gap=+7.78%, median width=547 sec. Моделей с покрытием в пределах ±5% от nominal: 0/1276.
 
 ## Training stability (232 NN-моделей)
 - Средний converged_rate (доля фолдов с |slope| ниже порога): 30%.

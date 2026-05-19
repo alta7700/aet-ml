@@ -97,6 +97,21 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="сколько эпох запускать только для TCN-архитектур",
     )
+    p.add_argument(
+        "--phase-split-ablation",
+        action="store_true",
+        help="вместо полного грида сгенерировать ablation на phase_split: "
+             "3 батч-задачи Lin × feature_set × target × abs × "
+             "phase_split ∈ {split, full_cycles, full_window}.",
+    )
+    p.add_argument(
+        "--phase-split-feature-sets",
+        nargs="+",
+        default=["EMG"],
+        help="какие feature_set включать в phase_split-ablation. "
+             "Допустимо: EMG, EMG+NIRS, EMG+NIRS+HRV. "
+             "По умолчанию: EMG.",
+    )
     return p.parse_args()
 
 
@@ -121,6 +136,51 @@ def main() -> None:
     families = _parse_families(args.families)
     rows: list[dict] = []
     n = 0
+
+    # ── Ablation-режим: phase_split на feature_set с EMG-блоком ────────────
+    # Эмитит 3 батч-задачи linear_runner --grid-all с разными --phase-split
+    # значениями. Каждая батч-job обрабатывает
+    # Lin × feature_set × {lt1,lt2} × {abs,no_abs}.
+    if args.phase_split_ablation:
+        allowed_phase_sets = {"EMG", "EMG+NIRS", "EMG+NIRS+HRV"}
+        phase_feature_sets: list[str] = []
+        for raw in args.phase_split_feature_sets:
+            if raw not in allowed_phase_sets:
+                raise SystemExit(
+                    f"--phase-split-feature-sets: недопустимое значение {raw!r}. "
+                    f"Разрешены: {sorted(allowed_phase_sets)}"
+                )
+            if raw not in phase_feature_sets:
+                phase_feature_sets.append(raw)
+        if not phase_feature_sets:
+            raise SystemExit("--phase-split-feature-sets: список пуст")
+        feature_sets_arg = " ".join(phase_feature_sets)
+        for ps in ("split", "full_cycles", "full_window"):
+            n += 1
+            rows.append({
+                "job_id": f"J{n:04d}",
+                "runner": "linear_runner.py",
+                "architecture_id": "ALL_LIN",
+                "target": "both",
+                "feature_set": ",".join(phase_feature_sets),
+                "with_abs": "both",
+                "wavelet_mode": "none",
+                "cmd": (
+                    "PYTHONPATH=. uv run python linear_runner.py --grid-all "
+                    f"--feature-sets {feature_sets_arg} "
+                    f"--phase-split {ps}"
+                ),
+            })
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with OUT_PATH.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
+        print(f"[ablation] Сгенерировано {len(rows)} batch-задач "
+              f"(phase_split ∈ split / full_cycles / full_window; "
+              f"feature_set = {phase_feature_sets}).")
+        print(f"→ {OUT_PATH.resolve()}")
+        return
 
     def add(arch, fset_list):
         nonlocal n

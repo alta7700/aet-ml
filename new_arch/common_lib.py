@@ -112,12 +112,14 @@ class ExperimentMetadata:
     @classmethod
     def from_arch(cls, arch: ArchitectureSpec, *,
                   target: str, feature_set: str,
-                  with_abs: bool, wavelet_mode: WaveletMode) -> "ExperimentMetadata":
+                  with_abs: bool, wavelet_mode: WaveletMode,
+                  phase_split: str = "split") -> "ExperimentMetadata":
         """Создаёт metadata из ArchitectureSpec + конфига эксперимента.
 
         Валидация:
           • wavelet_mode входит в WAVELET_MODES;
-          • если arch.forced_wavelet_mode задан — wavelet_mode обязан совпадать.
+          • если arch.forced_wavelet_mode задан — wavelet_mode обязан совпадать;
+          • phase_split ∈ {"split","full_cycles","full_window"}.
         """
         if wavelet_mode not in WAVELET_MODES:
             raise ValueError(
@@ -130,11 +132,17 @@ class ExperimentMetadata:
                 f"wavelet_mode='{arch.forced_wavelet_mode}', "
                 f"передано wavelet_mode='{wavelet_mode}'."
             )
+        if phase_split not in ("split", "full_cycles", "full_window"):
+            raise ValueError(
+                f"phase_split='{phase_split}' недопустим. "
+                f"Разрешены: ('split','full_cycles','full_window')"
+            )
 
         model_id = build_model_id(
             arch,
             target=target, feature_set=feature_set,
             with_abs=with_abs, wavelet_mode=wavelet_mode,
+            phase_split=phase_split,
         )
 
         model_name = _build_model_name(arch)
@@ -142,6 +150,12 @@ class ExperimentMetadata:
             arch, target=target, feature_set=feature_set,
             with_abs=with_abs, wavelet_mode=wavelet_mode,
         )
+
+        # phase_split добавляем в hyperparams только для non-default,
+        # чтобы baseline-модели сохранили историческое hyperparams_json.
+        hp = dict(arch.hyperparams)
+        if phase_split != "split":
+            hp["phase_split"] = phase_split
 
         return cls(
             model_id=model_id,
@@ -157,7 +171,7 @@ class ExperimentMetadata:
             sample_stride_sec=arch.sample_stride_sec,
             model_name=model_name,
             full_model_name=full_model_name,
-            hyperparams=dict(arch.hyperparams),
+            hyperparams=hp,
         )
 
 
@@ -165,11 +179,17 @@ class ExperimentMetadata:
 
 def build_model_id(arch: ArchitectureSpec, *,
                    target: str, feature_set: str,
-                   with_abs: bool, wavelet_mode: WaveletMode) -> str:
+                   with_abs: bool, wavelet_mode: WaveletMode,
+                   phase_split: str = "split") -> str:
     """Детерминированный {architecture_id}_{hash8}.
 
     hash8 = blake2s(digest_size=4) от JSON-сериализации
     {hyperparams, target, feature_set, with_abs, wavelet_mode}.
+
+    Параметр ``phase_split`` управляет источником EMG-stream-фич
+    ("split" / "full_cycles" / "full_window"). При baseline ("split") ключ в
+    payload не добавляется — это сохраняет совместимость с существующими
+    model_id, обученными до ablation на phase split.
     """
     payload = {
         "hyperparams": arch.hyperparams,
@@ -178,6 +198,8 @@ def build_model_id(arch: ArchitectureSpec, *,
         "with_abs": bool(with_abs),
         "wavelet_mode": wavelet_mode,
     }
+    if phase_split != "split":
+        payload["phase_split"] = phase_split
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     hash8 = hashlib.blake2s(raw, digest_size=4).hexdigest()
     return f"{arch.architecture_id}_{hash8}"

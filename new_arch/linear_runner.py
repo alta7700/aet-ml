@@ -59,6 +59,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--wavelet-mode",
                    choices=["none", "dwt", "cwt", "wavelet_features", "wavelet_cnn"],
                    default="none")
+    p.add_argument("--phase-split",
+                   choices=["split", "full_cycles", "full_window"],
+                   default="split",
+                   help="ablation: какие EMG-stream-фичи использовать. "
+                        "split=load/rest (baseline), full_cycles=concat(load+rest), "
+                        "full_window=все сэмплы окна.")
+    p.add_argument("--feature-sets", nargs="+", default=None,
+                   help="ограничить --grid-all указанными feature_set'ами "
+                        "(например: --feature-sets EMG). По умолчанию — полный набор.")
     p.add_argument("--dataset", type=Path,
                    default=DEFAULT_DATASET_DIR / "merged_features_ml.parquet")
     p.add_argument("--session-params", type=Path,
@@ -86,7 +95,8 @@ def _loso_fold(arch, df_subj_tr: pd.DataFrame, df_subj_te: pd.DataFrame,
 
 def _train_one(arch, target: str, feature_set: str, with_abs: bool,
                df_prep: pd.DataFrame, target_col: str,
-               results_root: Path) -> tuple[str, float, float]:
+               results_root: Path,
+               phase_split: str = "split") -> tuple[str, float, float]:
     """Один model_id: prepare meta → LOSO → save artifacts.
 
     Возвращает (model_id, overall_mae_min, elapsed_sec) для лога.
@@ -96,12 +106,14 @@ def _train_one(arch, target: str, feature_set: str, with_abs: bool,
         arch,
         target=target, feature_set=feature_set,
         with_abs=with_abs, wavelet_mode="none",
+        phase_split=phase_split,
     )
     md = model_dir(results_root, meta)
     md.mkdir(parents=True, exist_ok=True)
     save_models_csv(meta, results_root)
 
-    feat_cols = get_feature_cols(df_prep, feature_set, with_abs=with_abs)
+    feat_cols = get_feature_cols(df_prep, feature_set, with_abs=with_abs,
+                                 phase_split=phase_split)
     if not feat_cols:
         return (meta.model_id, float("nan"), 0.0)
 
@@ -154,9 +166,18 @@ def run_grid_all(args: argparse.Namespace) -> None:
     df_raw = pd.read_parquet(args.dataset)
     session_params = pd.read_parquet(args.session_params) if args.session_params.exists() else pd.DataFrame()
 
-    feature_sets = ["EMG", "NIRS", "HRV", "EMG+NIRS", "EMG+NIRS+HRV"]
+    # Можно ограничить набор feature_sets через --feature-sets EMG NIRS ...,
+    # тогда grid-all обходит только указанные. По умолчанию — полный набор.
+    all_feature_sets = ["EMG", "NIRS", "HRV", "EMG+NIRS", "EMG+NIRS+HRV"]
+    if getattr(args, "feature_sets", None):
+        feature_sets = [fs for fs in args.feature_sets if fs in all_feature_sets]
+        if not feature_sets:
+            raise SystemExit(f"--feature-sets: ни одно значение не валидно ({args.feature_sets})")
+    else:
+        feature_sets = all_feature_sets
     abs_variants = [True, False]
     targets = ["lt1", "lt2"]
+    phase_split = getattr(args, "phase_split", "split")
 
     # Заранее prep по (target, with_abs) — не зависит от arch/fset.
     # Filter и feature engineering: дороже всего, делаем раз per target.
@@ -181,6 +202,7 @@ def run_grid_all(args: argparse.Namespace) -> None:
         delayed(_train_one)(
             arch, tg, fset, abs_,
             df_prepped[tg], TARGET_COLS[tg], args.results_root,
+            phase_split,
         )
         for (arch, tg, fset, abs_) in tasks
     )
@@ -216,10 +238,12 @@ def run(args: argparse.Namespace) -> None:
         arch,
         target=args.target, feature_set=args.feature_set,
         with_abs=args.with_abs, wavelet_mode=args.wavelet_mode,
+        phase_split=args.phase_split,
     )
     print(f"  model_id={meta.model_id}")
     print(f"  target={meta.target}  feature_set={meta.feature_set}  "
-          f"with_abs={meta.with_abs}  wavelet_mode={meta.wavelet_mode}")
+          f"with_abs={meta.with_abs}  wavelet_mode={meta.wavelet_mode}  "
+          f"phase_split={args.phase_split}")
 
     md = model_dir(args.results_root, meta)
     md.mkdir(parents=True, exist_ok=True)
@@ -232,9 +256,11 @@ def run(args: argparse.Namespace) -> None:
     df_prep = prepare_data(df_raw, session_params, meta.target)
     target_col = TARGET_COLS[meta.target]
     df_prep = df_prep.dropna(subset=[target_col])
-    feat_cols = get_feature_cols(df_prep, meta.feature_set, with_abs=meta.with_abs)
+    feat_cols = get_feature_cols(df_prep, meta.feature_set, with_abs=meta.with_abs,
+                                 phase_split=args.phase_split)
     if not feat_cols:
-        raise SystemExit(f"Пустой feature_set для {meta.feature_set}")
+        raise SystemExit(f"Пустой feature_set для {meta.feature_set} "
+                         f"(phase_split={args.phase_split})")
     print(f"  n_subjects={df_prep['subject_id'].nunique()}  "
           f"n_features={len(feat_cols)}  n_windows={len(df_prep)}")
 

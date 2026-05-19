@@ -1,4 +1,4 @@
-# Dataset QC Summary — 2026-05-13
+# Dataset QC Summary — 2026-05-19
 
 ## Объём
 - Участников: 18

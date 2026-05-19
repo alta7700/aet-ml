@@ -41,6 +41,9 @@ PREDICTIONS_BEST_COLUMNS = PREDICTIONS_SELECTED_COLUMNS
 MODEL_META_COLUMNS: list[str] = [
     "architecture_id", "family", "target",
     "feature_set", "with_abs", "wavelet_mode",
+    # phase_split — ablation-флаг для EMG-stream-фич. Денормализуется из
+    # hyperparams_json в loader._parse_phase_split; default = "split".
+    "phase_split",
     "window_size_sec", "sequence_length", "stride_sec", "sample_stride_sec",
     "model_name", "full_model_name", "hyperparams_json",
 ]
@@ -192,6 +195,19 @@ class CompositeWeights:
 
 
 @dataclass
+class SelectionTargetRules:
+    """Правила admissibility и shortlist-отбора для одного target."""
+    min_r2_mean: float = 0.0
+    max_catastrophic_rate_mean: float = 0.50
+    min_zero_crossing_coverage: float = 0.0
+    min_stable_window_coverage: float = 0.0
+    lt_top_quantile: float = 0.25
+    trajectory_top_quantile: float = 0.25
+    fallback_quantile: float = 1.0 / 3.0
+    shap_top_k: int = 3
+
+
+@dataclass
 class AnalysisConfig:
     """Конфиг analysis-pipeline. Сериализуется из analysis/config.toml."""
 
@@ -216,6 +232,13 @@ class AnalysisConfig:
 
     # Композитный скор
     composite_weights: CompositeWeights = field(default_factory=CompositeWeights)
+    selection_rules: dict[str, SelectionTargetRules] = field(default_factory=lambda: {
+        "lt1": SelectionTargetRules(),
+        "lt2": SelectionTargetRules(
+            min_zero_crossing_coverage=0.80,
+            min_stable_window_coverage=0.80,
+        ),
+    })
 
     # multitest defaults дублируем тут чтобы reload_config их учёл (см. ниже)
 
@@ -231,6 +254,7 @@ class AnalysisConfig:
         "stateful_vs_stateless",
         "attention_vs_plain",
         "stride_within_arch",
+        "phase_split_within_arch",
     )
     # Метрика, на которой считаются парные сравнения по умолчанию.
     primary_metric: str = "lt_mae_median_policy_mean"
@@ -412,5 +436,35 @@ def load_config(path: Path | None = None) -> AnalysisConfig:
         cfg.figure_dpi = int(r.get("figure_dpi", cfg.figure_dpi))
         if "figure_formats" in r:
             cfg.figure_formats = tuple(r["figure_formats"])
+
+    if "selection" in raw:
+        sec = raw["selection"]
+        for target in TARGETS:
+            if target not in sec:
+                continue
+            cur = cfg.selection_rules.get(target, SelectionTargetRules())
+            tcfg = sec[target]
+            cfg.selection_rules[target] = SelectionTargetRules(
+                min_r2_mean=float(tcfg.get("min_r2_mean", cur.min_r2_mean)),
+                max_catastrophic_rate_mean=float(tcfg.get(
+                    "max_catastrophic_rate_mean",
+                    cur.max_catastrophic_rate_mean,
+                )),
+                min_zero_crossing_coverage=float(tcfg.get(
+                    "min_zero_crossing_coverage",
+                    cur.min_zero_crossing_coverage,
+                )),
+                min_stable_window_coverage=float(tcfg.get(
+                    "min_stable_window_coverage",
+                    cur.min_stable_window_coverage,
+                )),
+                lt_top_quantile=float(tcfg.get(
+                    "lt_top_quantile", cur.lt_top_quantile)),
+                trajectory_top_quantile=float(tcfg.get(
+                    "trajectory_top_quantile", cur.trajectory_top_quantile)),
+                fallback_quantile=float(tcfg.get(
+                    "fallback_quantile", cur.fallback_quantile)),
+                shap_top_k=int(tcfg.get("shap_top_k", cur.shap_top_k)),
+            )
 
     return cfg

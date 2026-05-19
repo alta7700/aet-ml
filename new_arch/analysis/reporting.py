@@ -10,6 +10,7 @@ import pandas as pd
 from analysis.ranking import (
     rank_composite, rank_primary, rank_secondary, top_n_by_target,
 )
+from analysis.selection import build_selection_tables
 from analysis.schemas import AnalysisConfig
 
 
@@ -76,6 +77,7 @@ def export_dissertation_tables(model_summary: pd.DataFrame,
     out: dict[str, Path] = {}
     tables_dir = cfg.tables_dir
     tables_dir.mkdir(parents=True, exist_ok=True)
+    selection_tables = build_selection_tables(model_summary, cfg)
 
     # 1) Top-N per target по primary
     top_per_target = top_n_by_target(model_summary, n=cfg.top_n,
@@ -102,6 +104,13 @@ def export_dissertation_tables(model_summary: pd.DataFrame,
     sheets["ranking_primary"] = primary
     sheets["ranking_secondary"] = secondary
     sheets["ranking_composite"] = composite
+
+    # 2b) shortlist для explainability / trustable top.
+    for name, df in selection_tables.items():
+        if df.empty:
+            continue
+        out[f"{name}_csv"] = to_csv(df, tables_dir / f"{name}.csv")
+        sheets[name] = df
 
     # 3) сравнения — каждое в свой csv + лист xlsx
     for name, df in comparisons.items():

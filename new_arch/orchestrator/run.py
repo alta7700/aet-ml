@@ -102,7 +102,7 @@ class GpuMonitor:
     def __init__(self, gpu_index: int = 0):
         if pynvml is None:
             raise RuntimeError("NVML недоступен")
-        pynvml.nvmlInit()
+
         self.handle = pynvml.nvmlDeviceGetHandleByIndex(gpu_index)
         self.name = pynvml.nvmlDeviceGetName(self.handle)
         if isinstance(self.name, bytes):

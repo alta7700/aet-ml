@@ -101,6 +101,25 @@ def _section_wavelet(cmp_wav: pd.DataFrame) -> str:
     return "".join(lines)
 
 
+def _section_phase_split(cmp_ps: pd.DataFrame) -> str:
+    """Ablation на phase split EMG-сигнала (split / full_cycles / full_window)."""
+    if cmp_ps.empty:
+        return "## EMG phase split (load/rest)\nДанных нет.\n"
+    sub = cmp_ps[cmp_ps["metric"] == "abs_lt_err_median_sec"]
+    if sub.empty:
+        return "## EMG phase split (load/rest)\nНет primary-метрики в сравнениях.\n"
+    lines = ["## EMG phase split (load/rest vs full)\n"]
+    for (a, b), g in sub.groupby(["condition_a", "condition_b"]):
+        n_total = len(g)
+        n_sig = int((_pvals(g) < _ALPHA).sum())
+        med_delta = g["delta_mean"].median()
+        winner = a if med_delta < 0 else b
+        lines.append(
+            f"- {a} vs {b}: n={n_total}, значимых {n_sig}; "
+            f"median Δ = {med_delta:+.1f} sec → лучше **{winner}**\n")
+    return "".join(lines)
+
+
 def _section_lt12(cmp_lt: pd.DataFrame) -> str:
     if cmp_lt.empty:
         return "## LT1 vs LT2 difficulty\nДанных нет.\n"
@@ -229,6 +248,9 @@ def build_conclusions(model_summary: pd.DataFrame,
     parts.append("\n")
     parts.append(_section_wavelet(comparisons.get(
         "wavelet_within_family", pd.DataFrame())))
+    parts.append("\n")
+    parts.append(_section_phase_split(comparisons.get(
+        "phase_split_within_arch", pd.DataFrame())))
     parts.append("\n")
     parts.append(_section_lt12(comparisons.get(
         "lt1_vs_lt2_per_model_class", pd.DataFrame())))
