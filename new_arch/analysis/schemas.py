@@ -443,6 +443,14 @@ class AnalysisConfig:
         return self.out_root / "figures"
 
     @property
+    def thesis_tables_dir(self) -> Path:
+        return self.out_root / "tables_thesis"
+
+    @property
+    def thesis_figures_dir(self) -> Path:
+        return self.out_root / "figures_thesis"
+
+    @property
     def conclusions_dir(self) -> Path:
         return self.out_root / "conclusions"
 

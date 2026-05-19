@@ -31,7 +31,7 @@ if str(_ROOT) not in sys.path:
 from analysis import (
     aggregation, comparisons as cmp_mod, conclusions, conformal as conf_mod,
     loader, lt_search_viz, plotting, ranking as ranking_mod, reporting,
-    shap_analysis,
+    shap_analysis, thesis_figures,
     training_dynamics as td_mod, validation,
 )
 from analysis.schemas import AnalysisConfig, load_config
@@ -347,6 +347,31 @@ def cmd_conclude(cfg: AnalysisConfig, *, cache=None,
     return out
 
 
+def cmd_thesis(cfg: AnalysisConfig, *, cache=None,
+               comparisons_written=None):
+    """Экспортирует выделенный набор таблиц и фигур для текста диссертации."""
+    if cache is None:
+        summary = pd.read_parquet(cfg.model_summary_path)
+    else:
+        summary = cache["summary"]
+    primary = ranking_mod.rank_primary(summary)
+    if comparisons_written is None:
+        comparisons_written = {
+            p.stem: p for p in cfg.comparisons_dir.glob("*.parquet")
+        }
+    comparison_dfs = {
+        name: pd.read_parquet(path)
+        for name, path in comparisons_written.items()
+    }
+    print("thesis: таблицы и фигуры для главы результатов…")
+    out = thesis_figures.export_thesis_artifacts(
+        summary, comparison_dfs, primary, cfg)
+    n_figs = sum(len(v) for k, v in out.items() if k.startswith("fig_"))
+    n_other = len(out) - sum(1 for k in out if k.startswith("fig_"))
+    print(f"  сохранено: {n_other} таблиц/книг и {n_figs} файлов фигур")
+    return out
+
+
 # ─── argparse ──────────────────────────────────────────────────────────────
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -364,7 +389,7 @@ def main() -> None:
         description="new_arch analysis pipeline (CLI)")
     sub = parser.add_subparsers(dest="cmd", required=True)
     for name in ("discover", "build-cache", "run-stats", "plot",
-                 "report", "conclude", "all"):
+                 "report", "conclude", "thesis", "all"):
         sp = sub.add_parser(name)
         _add_common(sp)
 
@@ -398,6 +423,9 @@ def main() -> None:
     if args.cmd == "conclude":
         cmd_conclude(cfg)
         return
+    if args.cmd == "thesis":
+        cmd_thesis(cfg)
+        return
 
     if args.cmd == "viz-lt-search":
         saved = lt_search_viz.make_all(
@@ -413,6 +441,7 @@ def main() -> None:
     cmd_plot(cfg, cache=cache, comparisons_written=written)
     cmd_report(cfg, cache=cache, comparisons_written=written)
     cmd_conclude(cfg, cache=cache, comparisons_written=written)
+    cmd_thesis(cfg, cache=cache, comparisons_written=written)
     print("\n✓ analysis pipeline complete.")
 
 
