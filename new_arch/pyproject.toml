@@ -30,6 +30,7 @@ analysis = [
     "jinja2>=3.1",
     "tomli>=2.0; python_version < '3.11'",
     "shap>=0.46",
+    "captum>=0.7",
 ]
 
 [tool.uv]

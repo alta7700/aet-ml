@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -132,6 +133,21 @@ def cmd_build_cache(cfg: AnalysisConfig, *, disc=None, rep=None):
           f"shap_global rows: {len(shap_tables['global'])}; "
           f"shap_modality rows: {len(shap_tables['modality'])}")
 
+    print("build-cache: Captum (NN trusted finalists, IG+GradientShap+Occlusion)…")
+    try:
+        from analysis import captum_analysis
+        captum_tables = captum_analysis.build_captum_tables(summary, cfg)
+        print(f"  captum_subject rows: {len(captum_tables['subject'])}; "
+              f"captum_global rows: {len(captum_tables['global'])}; "
+              f"captum_modality rows: {len(captum_tables['modality'])}; "
+              f"captum_time rows: {len(captum_tables['time'])}; "
+              f"skipped: {len(captum_tables['skipped'])}")
+    except ImportError as exc:
+        warnings.warn(f"Captum недоступен: {exc}; пропускаю NN-интерпретацию.")
+        captum_tables = {"subject": pd.DataFrame(), "global": pd.DataFrame(),
+                         "modality": pd.DataFrame(), "time": pd.DataFrame(),
+                         "consistency": pd.DataFrame(), "skipped": pd.DataFrame()}
+
     return {
         "preds_best": preds_sel,
         "preds_selected": preds_sel,
@@ -145,6 +161,12 @@ def cmd_build_cache(cfg: AnalysisConfig, *, disc=None, rep=None):
         "shap_global": shap_tables["global"],
         "shap_subject": shap_tables["subject"],
         "shap_modality": shap_tables["modality"],
+        "captum_subject": captum_tables["subject"],
+        "captum_global": captum_tables["global"],
+        "captum_modality": captum_tables["modality"],
+        "captum_time": captum_tables["time"],
+        "captum_consistency": captum_tables["consistency"],
+        "captum_skipped": captum_tables["skipped"],
     }
 
 
@@ -176,6 +198,14 @@ def cmd_plot(cfg: AnalysisConfig, *, cache=None,
                        if cfg.shap_global_summary_path.exists() else None)
         shap_modality = (pd.read_parquet(cfg.shap_modality_summary_path)
                          if cfg.shap_modality_summary_path.exists() else None)
+        captum_global = (pd.read_parquet(cfg.captum_global_summary_path)
+                         if cfg.captum_global_summary_path.exists() else None)
+        captum_modality = (pd.read_parquet(cfg.captum_modality_summary_path)
+                           if cfg.captum_modality_summary_path.exists() else None)
+        captum_time = (pd.read_parquet(cfg.captum_time_summary_path)
+                       if cfg.captum_time_summary_path.exists() else None)
+        captum_consistency = (pd.read_parquet(cfg.captum_method_consistency_path)
+                              if cfg.captum_method_consistency_path.exists() else None)
     else:
         preds_sel, subj, lt, summary = (
             cache["preds_selected"], cache["subject"],
@@ -184,6 +214,10 @@ def cmd_plot(cfg: AnalysisConfig, *, cache=None,
         train_dyn = cache.get("training_dynamics")
         shap_global = cache.get("shap_global")
         shap_modality = cache.get("shap_modality")
+        captum_global = cache.get("captum_global")
+        captum_modality = cache.get("captum_modality")
+        captum_time = cache.get("captum_time")
+        captum_consistency = cache.get("captum_consistency")
 
     if comparisons_written is None:
         comparisons_written = {
@@ -208,6 +242,19 @@ def cmd_plot(cfg: AnalysisConfig, *, cache=None,
     )
     if shap_files:
         out["shap"] = shap_files
+    try:
+        from analysis import captum_analysis
+        captum_files = captum_analysis.plot_captum_figures(
+            captum_global if captum_global is not None else pd.DataFrame(),
+            captum_modality if captum_modality is not None else pd.DataFrame(),
+            captum_time if captum_time is not None else pd.DataFrame(),
+            captum_consistency if captum_consistency is not None else pd.DataFrame(),
+            cfg,
+        )
+        if captum_files:
+            out["captum"] = captum_files
+    except ImportError as exc:
+        warnings.warn(f"Captum фигуры пропущены: {exc}")
     total = sum(len(v) for v in out.values())
     print(f"  сохранено {total} файлов фигур в {cfg.figures_dir}")
     return out
@@ -266,10 +313,22 @@ def cmd_conclude(cfg: AnalysisConfig, *, cache=None,
                     if cfg.conformal_summary_path.exists() else None)
         train_sum = (pd.read_parquet(cfg.training_summary_path)
                      if cfg.training_summary_path.exists() else None)
+        cap_cons = (pd.read_parquet(cfg.captum_method_consistency_path)
+                    if cfg.captum_method_consistency_path.exists() else None)
+        cap_glob = (pd.read_parquet(cfg.captum_global_summary_path)
+                    if cfg.captum_global_summary_path.exists() else None)
+        cap_time = (pd.read_parquet(cfg.captum_time_summary_path)
+                    if cfg.captum_time_summary_path.exists() else None)
+        cap_skip = (pd.read_parquet(cfg.captum_skipped_path)
+                    if cfg.captum_skipped_path.exists() else None)
     else:
         summary = cache["summary"]
         conf_sum = cache.get("conformal_summary")
         train_sum = cache.get("training_summary")
+        cap_cons = cache.get("captum_consistency")
+        cap_glob = cache.get("captum_global")
+        cap_time = cache.get("captum_time")
+        cap_skip = cache.get("captum_skipped")
     if comparisons_written is None:
         comparisons_written = {
             p.stem: p for p in cfg.comparisons_dir.glob("*.parquet")
@@ -280,7 +339,10 @@ def cmd_conclude(cfg: AnalysisConfig, *, cache=None,
     }
     out = conclusions.build_conclusions(
         summary, comparison_dfs, cfg,
-        conformal_summary=conf_sum, training_summary=train_sum)
+        conformal_summary=conf_sum, training_summary=train_sum,
+        captum_consistency=cap_cons, captum_global=cap_glob,
+        captum_time=cap_time, captum_skipped=cap_skip,
+    )
     print(f"conclude: {out}")
     return out
 

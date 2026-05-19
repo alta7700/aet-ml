@@ -225,11 +225,107 @@ def _section_stability(training_summary: pd.DataFrame) -> str:
     )
 
 
+def _section_captum(consistency_df: pd.DataFrame | None,
+                    global_df: pd.DataFrame | None,
+                    time_df: pd.DataFrame | None,
+                    skipped_df: pd.DataFrame | None) -> str:
+    """Сводка по Captum-интерпретации NN-finalist'ов.
+
+    Содержит:
+      • кросс-метод consistency по модальностям (IG vs GradientShap vs Occlusion);
+      • топ-3 признака IG на каждую модель;
+      • профиль важности шагов последовательности (где сосредоточена внимание).
+    """
+    lines: list[str] = ["## NN-интерпретация (Captum, trusted finalists)\n"]
+    if consistency_df is None or consistency_df.empty:
+        lines.append("Данных нет (NN-finalists не выбраны или модуль выключен).\n")
+        return "".join(lines)
+
+    method_cols = [c for c in consistency_df.columns
+                   if c not in ("model_id", "architecture_id",
+                                "target", "modality")]
+
+    for model_id, g in consistency_df.groupby("model_id", sort=True):
+        target = str(g["target"].iloc[0]).upper()
+        arch_id = str(g["architecture_id"].iloc[0])
+        lines.append(f"\n### {model_id} ({arch_id}, {target})\n")
+
+        # Топ-модальность по IG (если есть) и наибольший Δ между методами.
+        if "integrated_gradients" in method_cols:
+            ig_top = g.sort_values(
+                "integrated_gradients", ascending=False).iloc[0]
+            lines.append(
+                f"- IG-топ-модальность: **{ig_top['modality']}** "
+                f"({float(ig_top['integrated_gradients']):.0%}).\n")
+        if {"integrated_gradients", "occlusion"} <= set(method_cols):
+            disagree = (g["integrated_gradients"] - g["occlusion"]).abs()
+            i_dis = int(disagree.idxmax())
+            mod = str(g.loc[i_dis, "modality"])
+            ig_v = float(g.loc[i_dis, "integrated_gradients"])
+            oc_v = float(g.loc[i_dis, "occlusion"])
+            lines.append(
+                f"- Наибольшее расхождение IG↔Occlusion: **{mod}** "
+                f"(IG={ig_v:.0%}, Occlusion={oc_v:.0%}). "
+                "IG переоценивает «острые» признаки, Occlusion — «дублирующиеся»; "
+                "сильное расхождение → проверять отдельно.\n")
+
+        # Полная сводка модальностей.
+        lines.append("- Доли по модальностям (subject-mean):\n")
+        lines.append("  | modality | " + " | ".join(method_cols) + " |\n")
+        lines.append("  |---" + "|---" * len(method_cols) + "|\n")
+        for _, row in g.sort_values(
+                "integrated_gradients"
+                if "integrated_gradients" in method_cols
+                else method_cols[0], ascending=False).iterrows():
+            cells = " | ".join(f"{float(row[c]):.2f}" for c in method_cols)
+            lines.append(f"  | {row['modality']} | {cells} |\n")
+
+        # Top-3 признака IG.
+        if global_df is not None and not global_df.empty:
+            sub = global_df[(global_df["model_id"] == model_id)
+                            & (global_df["method"] == "integrated_gradients")]
+            top3 = sub.sort_values(
+                "share_mean_across_subjects", ascending=False).head(3)
+            if not top3.empty:
+                feat_str = ", ".join(
+                    f"`{r['feature_name']}` ({float(r['share_mean_across_subjects']):.1%})"
+                    for _, r in top3.iterrows())
+                lines.append(f"- Top-3 признака IG: {feat_str}.\n")
+
+        # Профиль шагов последовательности.
+        if time_df is not None and not time_df.empty:
+            t_ig = time_df[(time_df["model_id"] == model_id)
+                           & (time_df["method"] == "integrated_gradients")]
+            if not t_ig.empty:
+                profile = (t_ig.groupby("time_offset_sec")["share"].mean()
+                           .sort_index())
+                seq_len = len(profile)
+                # Доля внимания на ближнюю половину окна.
+                half = seq_len // 2
+                near = profile.iloc[half:].sum()
+                lines.append(
+                    f"- Профиль шагов (seq_len={seq_len}): "
+                    f"{near:.0%} внимания приходится на ближнюю половину "
+                    f"({int(profile.index[half])}…{int(profile.index[-1])} сек); "
+                    f"остаток — на дальнюю историю "
+                    f"({int(profile.index[0])}…{int(profile.index[half - 1])} сек).\n")
+
+    if skipped_df is not None and not skipped_df.empty:
+        lines.append(
+            f"\n**Пропущено моделей** (вне whitelist'а или без чекпоинтов): "
+            f"{len(skipped_df)}.\n")
+    return "".join(lines)
+
+
 def build_conclusions(model_summary: pd.DataFrame,
                       comparisons: dict[str, pd.DataFrame],
                       cfg: AnalysisConfig,
                       conformal_summary: pd.DataFrame | None = None,
                       training_summary: pd.DataFrame | None = None,
+                      captum_consistency: pd.DataFrame | None = None,
+                      captum_global: pd.DataFrame | None = None,
+                      captum_time: pd.DataFrame | None = None,
+                      captum_skipped: pd.DataFrame | None = None,
                       ) -> Path:
     """Сохраняет analysis_out/conclusions/conclusions.md и возвращает путь."""
     cfg.conclusions_dir.mkdir(parents=True, exist_ok=True)
@@ -263,6 +359,9 @@ def build_conclusions(model_summary: pd.DataFrame,
     parts.append(_section_conformal(conformal_summary))
     parts.append("\n")
     parts.append(_section_stability(training_summary))
+    parts.append("\n")
+    parts.append(_section_captum(
+        captum_consistency, captum_global, captum_time, captum_skipped))
 
     out = cfg.conclusions_dir / "conclusions.md"
     out.write_text("".join(parts), encoding="utf-8")

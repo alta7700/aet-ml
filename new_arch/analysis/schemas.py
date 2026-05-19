@@ -220,6 +220,41 @@ class ShapConfig:
 
 
 @dataclass
+class CaptumConfig:
+    """Параметры NN-интерпретации (Captum) для trusted-finalist'ов LSTM/TCN.
+
+    Scope ограничен whitelist'ом ``allowed_model_classes`` — это явная защита
+    от того, что в finalist'ы попадёт незнакомая архитектура (например stateful
+    LSTM), для которой атрибуция через input-only методы методологически
+    некорректна. Если архитектура не в списке, в логах появляется warning и
+    шаг пропускается без ошибки (см. captum_analysis.build_captum_tables).
+    """
+    enabled: bool = True
+    # Какие методы атрибуции считаются. Перечень фиксирован, флаги — рубильники.
+    use_integrated_gradients: bool = True
+    use_gradient_shap: bool = True
+    use_occlusion_modality: bool = True
+    # Параметры IG.
+    ig_n_steps: int = 32
+    ig_internal_batch_size: int = 16
+    # Параметры GradientShap: число baseline-сэмплов из train-фолда + stdevs.
+    gradshap_n_baselines: int = 16
+    gradshap_n_samples: int = 16
+    gradshap_stdevs: float = 0.0
+    # Сколько test-окон субъекта подаётся в атрибуцию (None → все).
+    max_eval_windows_per_subject: int | None = 256
+    # Whitelist архитектур: всё остальное → warn+skip.
+    allowed_model_classes: tuple[str, ...] = (
+        "LSTMRegressor", "AttentionLSTMRegressor",
+        "PureTCN", "DwtTCN", "WaveNetTCN",
+    )
+    # Какие семейства брать как кандидатов до архитектурного whitelist'а.
+    selection_families: tuple[str, ...] = ("LSTM", "TCN")
+    # Сид для baseline-сэмплинга и любых RNG внутри атрибуций.
+    random_seed: int = 42
+
+
+@dataclass
 class AnalysisConfig:
     """Конфиг analysis-pipeline. Сериализуется из analysis/config.toml."""
 
@@ -254,6 +289,7 @@ class AnalysisConfig:
         ),
     })
     shap: ShapConfig = field(default_factory=ShapConfig)
+    captum: CaptumConfig = field(default_factory=CaptumConfig)
 
     # multitest defaults дублируем тут чтобы reload_config их учёл (см. ниже)
 
@@ -368,6 +404,31 @@ class AnalysisConfig:
     @property
     def shap_modality_summary_path(self) -> Path:
         return self.cache_dir / "shap_modality_summary.parquet"
+
+    # ── Captum (NN-интерпретация) ───────────────────────────────────────────
+    @property
+    def captum_subject_summary_path(self) -> Path:
+        return self.cache_dir / "captum_subject_summary.parquet"
+
+    @property
+    def captum_global_summary_path(self) -> Path:
+        return self.cache_dir / "captum_global_summary.parquet"
+
+    @property
+    def captum_modality_summary_path(self) -> Path:
+        return self.cache_dir / "captum_modality_summary.parquet"
+
+    @property
+    def captum_time_summary_path(self) -> Path:
+        return self.cache_dir / "captum_time_summary.parquet"
+
+    @property
+    def captum_method_consistency_path(self) -> Path:
+        return self.cache_dir / "captum_method_consistency.parquet"
+
+    @property
+    def captum_skipped_path(self) -> Path:
+        return self.cache_dir / "captum_skipped.parquet"
 
     @property
     def comparisons_dir(self) -> Path:
@@ -513,6 +574,36 @@ def load_config(path: Path | None = None) -> AnalysisConfig:
             kernel_nsamples=int(s.get(
                 "kernel_nsamples", cur.kernel_nsamples)),
             random_seed=int(s.get("random_seed", cur.random_seed)),
+        )
+
+    if "captum" in raw:
+        c = raw["captum"]
+        cur = cfg.captum
+        cfg.captum = CaptumConfig(
+            enabled=bool(c.get("enabled", cur.enabled)),
+            use_integrated_gradients=bool(c.get(
+                "use_integrated_gradients", cur.use_integrated_gradients)),
+            use_gradient_shap=bool(c.get(
+                "use_gradient_shap", cur.use_gradient_shap)),
+            use_occlusion_modality=bool(c.get(
+                "use_occlusion_modality", cur.use_occlusion_modality)),
+            ig_n_steps=int(c.get("ig_n_steps", cur.ig_n_steps)),
+            ig_internal_batch_size=int(c.get(
+                "ig_internal_batch_size", cur.ig_internal_batch_size)),
+            gradshap_n_baselines=int(c.get(
+                "gradshap_n_baselines", cur.gradshap_n_baselines)),
+            gradshap_n_samples=int(c.get(
+                "gradshap_n_samples", cur.gradshap_n_samples)),
+            gradshap_stdevs=float(c.get("gradshap_stdevs", cur.gradshap_stdevs)),
+            max_eval_windows_per_subject=(
+                None if c.get("max_eval_windows_per_subject") in (None, "null")
+                else int(c["max_eval_windows_per_subject"])
+            ) if "max_eval_windows_per_subject" in c else cur.max_eval_windows_per_subject,
+            allowed_model_classes=tuple(c.get(
+                "allowed_model_classes", cur.allowed_model_classes)),
+            selection_families=tuple(c.get(
+                "selection_families", cur.selection_families)),
+            random_seed=int(c.get("random_seed", cur.random_seed)),
         )
 
     return cfg

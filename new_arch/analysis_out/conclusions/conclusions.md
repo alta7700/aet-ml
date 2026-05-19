@@ -54,3 +54,33 @@ median Δ = +24.2 sec.
 - Median training_instability (CV последних шагов): 0.743.
 - Mean train_mae_slope_last_K: -0.002 sec/epoch (отрицательный = всё ещё улучшается).
 **Замечание:** без validation-split это не overfitting, а только динамика train-метрик.
+
+## NN-интерпретация (Captum, trusted finalists)
+
+### LSTM3_31f2b090 (LSTM3, LT1)
+- IG-топ-модальность: **EMG** (55%).
+- Наибольшее расхождение IG↔Occlusion: **EMG** (IG=55%, Occlusion=36%). IG переоценивает «острые» признаки, Occlusion — «дублирующиеся»; сильное расхождение → проверять отдельно.
+- Доли по модальностям (subject-mean):
+  | modality | gradient_shap | integrated_gradients | occlusion |
+  |---|---|---|---|
+  | EMG | 0.55 | 0.55 | 0.36 |
+  | NIRS | 0.25 | 0.25 | 0.24 |
+  | HRV | 0.07 | 0.08 | 0.15 |
+  | Interaction | 0.07 | 0.06 | 0.14 |
+  | Kinematics | 0.06 | 0.06 | 0.10 |
+- Top-3 признака IG: `feat_rr_per_watt` (4.7%), `trainred_hhb_std` (4.4%), `trainred_smo2_drop` (4.4%).
+- Профиль шагов (seq_len=6): 45% внимания приходится на ближнюю половину (-30…0 сек); остаток — на дальнюю историю (-75…-45 сек).
+
+### TCN3_77409486 (TCN3, LT2)
+- IG-топ-модальность: **EMG** (52%).
+- Наибольшее расхождение IG↔Occlusion: **EMG** (IG=52%, Occlusion=29%). IG переоценивает «острые» признаки, Occlusion — «дублирующиеся»; сильное расхождение → проверять отдельно.
+- Доли по модальностям (subject-mean):
+  | modality | gradient_shap | integrated_gradients | occlusion |
+  |---|---|---|---|
+  | EMG | 0.52 | 0.52 | 0.29 |
+  | NIRS | 0.23 | 0.24 | 0.22 |
+  | HRV | 0.09 | 0.09 | 0.17 |
+  | Kinematics | 0.08 | 0.08 | 0.07 |
+  | Interaction | 0.07 | 0.07 | 0.25 |
+- Top-3 признака IG: `hrv_mean_rr_ms` (3.3%), `feat_rr_per_watt` (3.1%), `trainred_hbdiff_std` (2.8%).
+- Профиль шагов (seq_len=30): 50% внимания приходится на ближнюю половину (-70…0 сек); остаток — на дальнюю историю (-145…-75 сек).
