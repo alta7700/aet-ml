@@ -39,6 +39,25 @@ TARGET_COLS = {
 }
 
 
+def _apply_target_shift(df: pd.DataFrame, target_col: str, shift_sec: int) -> pd.DataFrame:
+    """Sensitivity-сдвиг target в секундах.
+
+    y_shifted = y_true - shift_sec. Семантика: «истинный мышечный порог
+    наступил на shift_sec секунд раньше наблюдаемого капиллярного значения».
+    При shift_sec=0 возвращает df без изменений (no-op).
+
+    Применяется ОДИН раз после prepare_data и до LOSO-разделения,
+    чтобы train и test получали один и тот же сдвиг. Набор окон при этом
+    не меняется (фильтрация в prepare_data зависит только от флагов
+    валидности, не от значения target).
+    """
+    if shift_sec == 0:
+        return df
+    df = df.copy()
+    df[target_col] = df[target_col].astype(float) - float(shift_sec)
+    return df
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="linear runner (LOSO)")
     p.add_argument("--grid-all", action="store_true",
@@ -65,6 +84,11 @@ def parse_args() -> argparse.Namespace:
                    help="ablation: какие EMG-stream-фичи использовать. "
                         "split=load/rest (baseline), full_cycles=concat(load+rest), "
                         "full_window=все сэмплы окна.")
+    p.add_argument("--target-shift-sec", type=int, default=0,
+                   help="sensitivity-сдвиг целевой переменной в секундах "
+                        "(y_true_shifted = y_true - shift). default=0 = "
+                        "baseline (без сдвига). См. обоснование в разделе "
+                        "обсуждения о задержке капиллярного лактата.")
     p.add_argument("--feature-sets", nargs="+", default=None,
                    help="ограничить --grid-all указанными feature_set'ами "
                         "(например: --feature-sets EMG). По умолчанию — полный набор.")
@@ -96,10 +120,13 @@ def _loso_fold(arch, df_subj_tr: pd.DataFrame, df_subj_te: pd.DataFrame,
 def _train_one(arch, target: str, feature_set: str, with_abs: bool,
                df_prep: pd.DataFrame, target_col: str,
                results_root: Path,
-               phase_split: str = "split") -> tuple[str, float, float]:
+               phase_split: str = "split",
+               target_shift_sec: int = 0) -> tuple[str, float, float]:
     """Один model_id: prepare meta → LOSO → save artifacts.
 
     Возвращает (model_id, overall_mae_min, elapsed_sec) для лога.
+
+    df_prep уже должен содержать сдвинутый target (если shift!=0).
     """
     t0 = time.perf_counter()
     meta = ExperimentMetadata.from_arch(
@@ -107,6 +134,7 @@ def _train_one(arch, target: str, feature_set: str, with_abs: bool,
         target=target, feature_set=feature_set,
         with_abs=with_abs, wavelet_mode="none",
         phase_split=phase_split,
+        target_shift_sec=target_shift_sec,
     )
     md = model_dir(results_root, meta)
     md.mkdir(parents=True, exist_ok=True)
@@ -178,6 +206,7 @@ def run_grid_all(args: argparse.Namespace) -> None:
     abs_variants = [True, False]
     targets = ["lt1", "lt2"]
     phase_split = getattr(args, "phase_split", "split")
+    target_shift_sec = int(getattr(args, "target_shift_sec", 0))
 
     # Заранее prep по (target, with_abs) — не зависит от arch/fset.
     # Filter и feature engineering: дороже всего, делаем раз per target.
@@ -185,7 +214,13 @@ def run_grid_all(args: argparse.Namespace) -> None:
     for tg in targets:
         df_prepped[tg] = prepare_data(df_raw, session_params, tg)
         df_prepped[tg] = df_prepped[tg].dropna(subset=[TARGET_COLS[tg]])
-        print(f"  prep[{tg}] shape={df_prepped[tg].shape}")
+        # Sensitivity-сдвиг применяется ОДИН раз ко всему df_prepped[tg],
+        # train и test получают единый сдвиг.
+        df_prepped[tg] = _apply_target_shift(
+            df_prepped[tg], TARGET_COLS[tg], target_shift_sec
+        )
+        print(f"  prep[{tg}] shape={df_prepped[tg].shape}"
+              + (f"  target_shift={target_shift_sec}s" if target_shift_sec else ""))
 
     # Декартов набор задач.
     tasks: list[tuple] = []
@@ -202,7 +237,7 @@ def run_grid_all(args: argparse.Namespace) -> None:
         delayed(_train_one)(
             arch, tg, fset, abs_,
             df_prepped[tg], TARGET_COLS[tg], args.results_root,
-            phase_split,
+            phase_split, target_shift_sec,
         )
         for (arch, tg, fset, abs_) in tasks
     )
@@ -234,16 +269,19 @@ def run(args: argparse.Namespace) -> None:
 
     print(f"[{arch.architecture_id}] {arch.architecture_name}")
 
+    target_shift_sec = int(getattr(args, "target_shift_sec", 0))
     meta = ExperimentMetadata.from_arch(
         arch,
         target=args.target, feature_set=args.feature_set,
         with_abs=args.with_abs, wavelet_mode=args.wavelet_mode,
         phase_split=args.phase_split,
+        target_shift_sec=target_shift_sec,
     )
     print(f"  model_id={meta.model_id}")
     print(f"  target={meta.target}  feature_set={meta.feature_set}  "
           f"with_abs={meta.with_abs}  wavelet_mode={meta.wavelet_mode}  "
-          f"phase_split={args.phase_split}")
+          f"phase_split={args.phase_split}"
+          + (f"  target_shift={target_shift_sec}s" if target_shift_sec else ""))
 
     md = model_dir(args.results_root, meta)
     md.mkdir(parents=True, exist_ok=True)
@@ -256,6 +294,7 @@ def run(args: argparse.Namespace) -> None:
     df_prep = prepare_data(df_raw, session_params, meta.target)
     target_col = TARGET_COLS[meta.target]
     df_prep = df_prep.dropna(subset=[target_col])
+    df_prep = _apply_target_shift(df_prep, target_col, target_shift_sec)
     feat_cols = get_feature_cols(df_prep, meta.feature_set, with_abs=meta.with_abs,
                                  phase_split=args.phase_split)
     if not feat_cols:

@@ -113,13 +113,16 @@ class ExperimentMetadata:
     def from_arch(cls, arch: ArchitectureSpec, *,
                   target: str, feature_set: str,
                   with_abs: bool, wavelet_mode: WaveletMode,
-                  phase_split: str = "split") -> "ExperimentMetadata":
+                  phase_split: str = "split",
+                  target_shift_sec: int = 0) -> "ExperimentMetadata":
         """Создаёт metadata из ArchitectureSpec + конфига эксперимента.
 
         Валидация:
           • wavelet_mode входит в WAVELET_MODES;
           • если arch.forced_wavelet_mode задан — wavelet_mode обязан совпадать;
-          • phase_split ∈ {"split","full_cycles","full_window"}.
+          • phase_split ∈ {"split","full_cycles","full_window"};
+          • target_shift_sec — целое число (sensitivity-сдвиг target в секундах,
+            применяется как y_true_shifted = y_true - target_shift_sec).
         """
         if wavelet_mode not in WAVELET_MODES:
             raise ValueError(
@@ -137,12 +140,17 @@ class ExperimentMetadata:
                 f"phase_split='{phase_split}' недопустим. "
                 f"Разрешены: ('split','full_cycles','full_window')"
             )
+        if not isinstance(target_shift_sec, int):
+            raise ValueError(
+                f"target_shift_sec должен быть int, получен {type(target_shift_sec).__name__}"
+            )
 
         model_id = build_model_id(
             arch,
             target=target, feature_set=feature_set,
             with_abs=with_abs, wavelet_mode=wavelet_mode,
             phase_split=phase_split,
+            target_shift_sec=target_shift_sec,
         )
 
         model_name = _build_model_name(arch)
@@ -151,11 +159,14 @@ class ExperimentMetadata:
             with_abs=with_abs, wavelet_mode=wavelet_mode,
         )
 
-        # phase_split добавляем в hyperparams только для non-default,
-        # чтобы baseline-модели сохранили историческое hyperparams_json.
+        # phase_split / target_shift_sec добавляем в hyperparams только при
+        # non-default значениях, чтобы baseline-модели сохранили историческое
+        # hyperparams_json и существующие model_id остались стабильны.
         hp = dict(arch.hyperparams)
         if phase_split != "split":
             hp["phase_split"] = phase_split
+        if target_shift_sec != 0:
+            hp["target_shift_sec"] = int(target_shift_sec)
 
         return cls(
             model_id=model_id,
@@ -180,7 +191,8 @@ class ExperimentMetadata:
 def build_model_id(arch: ArchitectureSpec, *,
                    target: str, feature_set: str,
                    with_abs: bool, wavelet_mode: WaveletMode,
-                   phase_split: str = "split") -> str:
+                   phase_split: str = "split",
+                   target_shift_sec: int = 0) -> str:
     """Детерминированный {architecture_id}_{hash8}.
 
     hash8 = blake2s(digest_size=4) от JSON-сериализации
@@ -190,6 +202,11 @@ def build_model_id(arch: ArchitectureSpec, *,
     ("split" / "full_cycles" / "full_window"). При baseline ("split") ключ в
     payload не добавляется — это сохраняет совместимость с существующими
     model_id, обученными до ablation на phase split.
+
+    Параметр ``target_shift_sec`` — sensitivity-сдвиг целевой переменной
+    в секундах (y_true_shifted = y_true - target_shift_sec). При baseline (0)
+    ключ в payload не добавляется — это сохраняет стабильность model_id для
+    всех ранее обученных моделей.
     """
     payload = {
         "hyperparams": arch.hyperparams,
@@ -200,6 +217,8 @@ def build_model_id(arch: ArchitectureSpec, *,
     }
     if phase_split != "split":
         payload["phase_split"] = phase_split
+    if target_shift_sec != 0:
+        payload["target_shift_sec"] = int(target_shift_sec)
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     hash8 = hashlib.blake2s(raw, digest_size=4).hexdigest()
     return f"{arch.architecture_id}_{hash8}"

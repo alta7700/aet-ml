@@ -46,6 +46,19 @@ TARGET_COLS = {
     "lt2": "target_time_to_lt2_center_sec",
 }
 
+
+def _apply_target_shift(df: pd.DataFrame, target_col: str, shift_sec: int) -> pd.DataFrame:
+    """Sensitivity-сдвиг target в секундах (y_shifted = y_true - shift_sec).
+
+    Применяется единожды после prepare_data + dropna, до LOSO-разделения.
+    При shift_sec=0 — no-op.
+    """
+    if shift_sec == 0:
+        return df
+    df = df.copy()
+    df[target_col] = df[target_col].astype(float) - float(shift_sec)
+    return df
+
 _TCN_BUILDERS = {
     "PureTCN": lambda input_size, hp: PureTCN(
         input_size=input_size,
@@ -94,6 +107,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--session-params", type=Path,
                    default=DEFAULT_DATASET_DIR / "session_params.parquet")
     p.add_argument("--results-root", type=Path, default=RESULTS_ROOT)
+    p.add_argument("--target-shift-sec", type=int, default=0,
+                   help="sensitivity-сдвиг target в секундах "
+                        "(y_shifted = y_true - shift). default=0 = baseline.")
     return p.parse_args()
 
 
@@ -291,10 +307,12 @@ def run(args: argparse.Namespace) -> None:
     checkpoint_every = max(1, checkpoint_every)
 
     wavelet_mode = args.wavelet_mode or arch.forced_wavelet_mode or "none"
+    target_shift_sec = int(getattr(args, "target_shift_sec", 0))
     meta = ExperimentMetadata.from_arch(
         arch,
         target=args.target, feature_set=args.feature_set,
         with_abs=args.with_abs, wavelet_mode=wavelet_mode,
+        target_shift_sec=target_shift_sec,
     )
     device = get_device()
     _seed_all(args.seed)
@@ -302,7 +320,8 @@ def run(args: argparse.Namespace) -> None:
     print(f"[{arch.architecture_id}] {arch.architecture_name}")
     print(f"  model_id={meta.model_id}  device={device}")
     print(f"  target={meta.target}  feature_set={meta.feature_set}  "
-          f"with_abs={meta.with_abs}  wavelet_mode={meta.wavelet_mode}")
+          f"with_abs={meta.with_abs}  wavelet_mode={meta.wavelet_mode}"
+          + (f"  target_shift={target_shift_sec}s" if target_shift_sec else ""))
     print(f"  seq_len={seq_len}  int_stride={int_stride_sec}s  "
           f"out_stride={out_stride_sec}s")
     print(f"  max_epochs={max_epochs}  checkpoint_every={checkpoint_every}")
@@ -318,6 +337,7 @@ def run(args: argparse.Namespace) -> None:
     df_prep = prepare_data(df_raw, session_params, meta.target)
     target_col = TARGET_COLS[meta.target]
     df_prep = df_prep.dropna(subset=[target_col])
+    df_prep = _apply_target_shift(df_prep, target_col, target_shift_sec)
     feat_cols = get_feature_cols(df_prep, meta.feature_set, with_abs=meta.with_abs)
     if not feat_cols:
         raise SystemExit(f"Пустой feature_set для {meta.feature_set}")

@@ -97,7 +97,13 @@ _STATEFUL_HP = {**_LSTM_COMMON_HP, "chunk_size": 10}
 
 def _lstm_stateless(arch_id: str, internal_stride_sec: int,
                     wavelet_mode: str) -> ArchitectureSpec:
-    """Stateless LSTM, seq_len=6, выбираемый internal_stride, outer=5."""
+    """Stateless LSTM, seq_len=6, выбираемый internal_stride, outer=5.
+
+    max_epochs=80 совпадает со значением, использованным при baseline-обучении
+    LSTM1..LSTM6 (см. results/LSTM{1..6}/models.csv → hyperparams_json).
+    Это критично для воспроизводимости и для совпадения model_id-хэшей
+    в sensitivity-экспериментах.
+    """
     wav_tag = "+CWT" if wavelet_mode == "cwt" else ""
     return ArchitectureSpec(
         architecture_id=arch_id,
@@ -115,6 +121,7 @@ def _lstm_stateless(arch_id: str, internal_stride_sec: int,
             "internal_stride_sec": internal_stride_sec,
             "outer_stride_sec": 5,
             **_LSTM_COMMON_HP,
+            "max_epochs": 80,
         },
     )
 

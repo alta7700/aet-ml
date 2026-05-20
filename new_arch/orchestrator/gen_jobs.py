@@ -112,7 +112,64 @@ def parse_args() -> argparse.Namespace:
              "Допустимо: EMG, EMG+NIRS, EMG+NIRS+HRV. "
              "По умолчанию: EMG.",
     )
+    p.add_argument(
+        "--shift-sensitivity",
+        action="store_true",
+        help="вместо полного грида сгенерировать sensitivity-анализ на сдвиг "
+             "целевой переменной для 12 финалистов (вариант B): "
+             "LT2 × {45,90,135,180}c для 6 моделей + "
+             "LT1 × {45,90}c для 6 моделей = 36 LOSO-прогонов. "
+             "См. SHIFT_SENSITIVITY_FINALISTS ниже.",
+    )
     return p.parse_args()
+
+
+# ─── Sensitivity-анализ задержки капиллярного лактата (вариант B) ──────────
+#
+# 12 финалистов, отобранных по топ-2 на семейство для каждой target.
+# Шортлист — строго топ-2 на семейство по lt_mae_median_policy_mean в
+# baseline-конфигурации (phase_split="split"), без принудительного разделения
+# на ElasticNet/SVR.
+#
+# Базовая точка (shift_sec=0) уже есть в существующих результатах — для
+# каждой отобранной модели она НЕ перегенерируется здесь.
+SHIFT_SENSITIVITY_FINALISTS: list[dict] = [
+    # ── LT2: топ-2 baseline (оба ElasticNet на HRV+abs) ──
+    {"target": "lt2", "architecture_id": "Lin15", "feature_set": "HRV",
+     "with_abs": True,  "wavelet_mode": "none", "note": "Lin top-1 (ElasticNet)"},
+    {"target": "lt2", "architecture_id": "Lin17", "feature_set": "HRV",
+     "with_abs": True,  "wavelet_mode": "none", "note": "Lin top-2 (ElasticNet)"},
+    {"target": "lt2", "architecture_id": "LSTM5", "feature_set": "EMG+NIRS+HRV",
+     "with_abs": True,  "wavelet_mode": "none", "note": "LSTM top-1"},
+    {"target": "lt2", "architecture_id": "LSTM7", "feature_set": "EMG+NIRS+HRV",
+     "with_abs": True,  "wavelet_mode": "none", "note": "LSTM top-2 (stateful)"},
+    {"target": "lt2", "architecture_id": "TCN1",  "feature_set": "EMG+NIRS+HRV",
+     "with_abs": True,  "wavelet_mode": "none", "note": "TCN top-1"},
+    {"target": "lt2", "architecture_id": "TCN3",  "feature_set": "EMG+NIRS+HRV",
+     "with_abs": True,  "wavelet_mode": "dwt",  "note": "TCN top-2 (DWT)"},
+    # ── LT1: топ-2 baseline (оба SVR на NIRS+abs) ──
+    {"target": "lt1", "architecture_id": "Lin25", "feature_set": "NIRS",
+     "with_abs": True,  "wavelet_mode": "none", "note": "Lin top-1 (SVR)"},
+    {"target": "lt1", "architecture_id": "Lin24", "feature_set": "NIRS",
+     "with_abs": True,  "wavelet_mode": "none", "note": "Lin top-2 (SVR)"},
+    {"target": "lt1", "architecture_id": "LSTM3", "feature_set": "EMG+NIRS+HRV",
+     "with_abs": False, "wavelet_mode": "none", "note": "LSTM top-1"},
+    {"target": "lt1", "architecture_id": "LSTM5", "feature_set": "EMG+NIRS+HRV",
+     "with_abs": False, "wavelet_mode": "none", "note": "LSTM top-2"},
+    {"target": "lt1", "architecture_id": "TCN3",  "feature_set": "EMG+NIRS+HRV",
+     "with_abs": False, "wavelet_mode": "dwt",  "note": "TCN top-1 (DWT)"},
+    {"target": "lt1", "architecture_id": "TCN1",  "feature_set": "EMG+NIRS+HRV",
+     "with_abs": False, "wavelet_mode": "none", "note": "TCN top-2"},
+]
+
+# Сетка сдвигов: LT2 — полный диапазон (¼, ½, ¾, полная ступень 180c);
+# LT1 — короткая (¼ и ½) как отрицательный контроль (физиологически
+# задержка для LT1 нестабильна, и мы ожидаем рост MAE уже при малых
+# сдвигах).
+SHIFT_GRID: dict[str, list[int]] = {
+    "lt2": [45, 90, 135, 180],
+    "lt1": [45, 90],
+}
 
 
 def _parse_families(raw: list[str] | None) -> set[str] | None:
@@ -131,11 +188,80 @@ def _parse_families(raw: list[str] | None) -> set[str] | None:
     return out
 
 
+def _arch_by_id(architecture_id: str):
+    """Поиск ArchitectureSpec по architecture_id в LINEAR_ARCHS/LSTM_ARCHS/TCN_ARCHS."""
+    for arch in LINEAR_ARCHS + LSTM_ARCHS + TCN_ARCHS:
+        if arch.architecture_id == architecture_id:
+            return arch
+    raise SystemExit(f"Не найдена архитектура: {architecture_id!r}")
+
+
+def _build_shift_cmd(runner: str, arch, target: str, fset: str,
+                     with_abs: bool, wavelet_mode: str, shift_sec: int) -> str:
+    """CLI для одного sensitivity-прогона.
+
+    Для Lin вызывается single-arch режим (БЕЗ --grid-all), чтобы посчитать
+    ровно одну модель. Для NN — обычный single-arch вызов.
+    """
+    abs_flag = "--with-abs" if with_abs else "--no-abs"
+    wave_flag = f" --wavelet-mode {wavelet_mode}" if wavelet_mode != "none" else ""
+    return (
+        f"PYTHONPATH=. uv run python {runner} "
+        f"--architecture {arch.architecture_id} "
+        f"--target {target} "
+        f"--feature-set {fset} {abs_flag}"
+        f"{wave_flag} "
+        f"--target-shift-sec {shift_sec}"
+    )
+
+
 def main() -> None:
     args = parse_args()
     families = _parse_families(args.families)
     rows: list[dict] = []
     n = 0
+
+    # ── Sensitivity-анализ задержки капиллярного лактата ───────────────────
+    # 12 финалистов × своя сетка сдвигов на target.
+    # Базовая точка (shift=0) НЕ генерируется — берётся из существующих
+    # baseline-прогонов в results/.
+    if args.shift_sensitivity:
+        for fin in SHIFT_SENSITIVITY_FINALISTS:
+            arch = _arch_by_id(fin["architecture_id"])
+            runner = _runner_for(arch)
+            target = fin["target"]
+            shifts = SHIFT_GRID[target]
+            for shift_sec in shifts:
+                n += 1
+                rows.append({
+                    "job_id": f"J{n:04d}",
+                    "runner": Path(runner).name,
+                    "architecture_id": arch.architecture_id,
+                    "target": target,
+                    "feature_set": fin["feature_set"],
+                    "with_abs": str(fin["with_abs"]).lower(),
+                    "wavelet_mode": fin["wavelet_mode"],
+                    "cmd": _build_shift_cmd(
+                        runner, arch, target,
+                        fin["feature_set"], fin["with_abs"],
+                        fin["wavelet_mode"], shift_sec,
+                    ),
+                })
+        OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with OUT_PATH.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
+        # Сводка по target/family.
+        from collections import Counter
+        c = Counter()
+        for r in rows:
+            c[r["target"]] += 1
+        print(f"[shift-sensitivity] Сгенерировано {len(rows)} задач:")
+        for t, count in sorted(c.items()):
+            print(f"  {t}: {count}")
+        print(f"\n→ {OUT_PATH.resolve()}")
+        return
 
     # ── Ablation-режим: phase_split на feature_set с EMG-блоком ────────────
     # Эмитит 3 батч-задачи linear_runner --grid-all с разными --phase-split
